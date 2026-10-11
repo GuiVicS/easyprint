@@ -52,6 +52,22 @@ function decodeBase64(data, max, what) {
   return Buffer.from(data.replace(/^data:[^,]*,/, ''), 'base64');
 }
 
+// Limite de impressões por origem (protege contra site invadido gastando papel/abrindo gaveta em loop)
+class RateLimiter {
+  constructor({ perMinute = 120, perHour = 2000 } = {}) { this.perMinute = perMinute; this.perHour = perHour; this.hits = new Map(); }
+  hit(key) {
+    const now = Date.now();
+    const list = (this.hits.get(key) || []).filter((t) => now - t < 3600000);
+    const lastMinute = list.filter((t) => now - t < 60000).length;
+    if (lastMinute >= this.perMinute || list.length >= this.perHour) {
+      throw new EPError('RATE_LIMITED', 'Muitas impressões em pouco tempo: esta foi bloqueada.',
+        'Se for legítimo (lote grande), aguarde um minuto. Se você não reconhece essas impressões, remova a permissão em EasyPrint → Sites e apps.');
+    }
+    list.push(now);
+    this.hits.set(key, list);
+  }
+}
+
 class PrintService {
   constructor(config, driver, log, { findBrowser } = {}) {
     this.findBrowser = findBrowser || (() => null);
@@ -62,6 +78,7 @@ class PrintService {
     this.queues = new Map();
     this.listeners = new Set();
     this.cache = { at: 0, list: null };
+    this.limiter = new RateLimiter();
   }
 
   onJob(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
@@ -158,6 +175,7 @@ class PrintService {
   async print(req, meta = {}) {
     if (!req || typeof req !== 'object') throw new EPError('INVALID_DOCUMENT', 'Pedido de impressão inválido.');
     const policy = { allowRaw: true, allowDrawer: true, allowPdf: true, ...(meta.policy || {}) };
+    if (meta.rateKey) this.limiter.hit(meta.rateKey);
     const { printer, via } = await this.resolve(req.printer, req.route);
     const profile = { ...printer.profile, ...pickOptions(req.options) };
     const copies = Math.min(50, Math.max(1, Number(req.copies) || 1));
@@ -176,7 +194,7 @@ class PrintService {
         : req.raw && req.raw.base64 ? decodeBase64(req.raw.base64, MAX_RAW_BYTES, 'O conteúdo RAW') : null;
       if (!raw || !raw.length) throw new EPError('INVALID_DOCUMENT', 'Os dados "raw" estão vazios ou inválidos.', 'Envie base64, { hex } ou { text }.');
       if (raw.length > MAX_RAW_BYTES) throw new EPError('TOO_LARGE', 'Conteúdo RAW grande demais.');
-      if (!policy.allowDrawer && hasDrawerPulse(raw)) throw new EPError('POLICY_BLOCKED', 'Comando de abrir gaveta bloqueado para esta conexão.', 'Libere "Abrir gaveta" na conexão em EasyPrint → Nuvem.');
+      if (!policy.allowDrawer && hasDrawerPulse(raw)) throw new EPError('POLICY_BLOCKED', 'Abrir a gaveta não está liberado para este site/sistema.', 'O lojista pode liberar em EasyPrint → Sites e apps (ou Nuvem) → "Abrir gaveta".');
       payload = { raw };
       job.preview = [{ kind: 'text', text: rawPreview(raw), align: 'left', size: 1 }];
     } else if (req.pdf !== undefined) {
@@ -197,7 +215,7 @@ class PrintService {
       if (!doc && req.image) doc = [{ type: 'image', src: req.image }];
       if (!doc) throw new EPError('INVALID_DOCUMENT', 'Nada para imprimir.', 'Envie "document", "text", "image", "pdf" ou "raw".');
       const lines = layout(doc, profile.columns);
-      if (!policy.allowDrawer && lines.some((l) => l.kind === 'drawer')) throw new EPError('POLICY_BLOCKED', 'Comando de abrir gaveta bloqueado para esta conexão.', 'Libere "Abrir gaveta" na conexão em EasyPrint → Nuvem.');
+      if (!policy.allowDrawer && lines.some((l) => l.kind === 'drawer')) throw new EPError('POLICY_BLOCKED', 'Abrir a gaveta não está liberado para este site/sistema.', 'O lojista pode liberar em EasyPrint → Sites e apps (ou Nuvem) → "Abrir gaveta".');
       if (profile.autoCut && !lines.some((l) => l.kind === 'cut')) lines.push({ kind: 'feed', lines: 3 }, { kind: 'cut' });
       payload = { lines };
       job.preview = lines;
@@ -311,4 +329,4 @@ function rawPreview(raw) {
   return `[${raw.length} bytes RAW]`;
 }
 
-module.exports = { PrintService, guessProfile, parsePages, hasDrawerPulse, VIRTUAL };
+module.exports = { PrintService, RateLimiter, guessProfile, parsePages, hasDrawerPulse, VIRTUAL };

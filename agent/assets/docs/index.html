@@ -359,15 +359,18 @@ await printer.printRaw(zpl, { route: 'etiqueta' });   <span class="c">// sai na 
       <div class="code"><button class="btn copy" data-copy="cloud-ex">Copiar</button><pre id="cloud-ex">const { EasyPrintCloud } = require('./easyprint-cloud');   <span class="c">// SDK de servidor, sem dependências</span>
 const cloud = new EasyPrintCloud({ relayUrl, apiKey, privateKey, publicKey });
 
-<span class="c">// 1x por loja: o lojista cola o código em EasyPrint → Nuvem</span>
-const { deviceId, connectionCode } = await cloud.createDevice('Loja Centro');
+<span class="c">// 1x por loja: guarde deviceId + deviceSecret (segredo); o lojista cola o código (uso único)</span>
+const { deviceId, deviceSecret, connectionCode } = await cloud.createDevice('Loja Centro');
+const device = { deviceId, deviceSecret };
 
 <span class="c">// a qualquer momento, do servidor</span>
-await cloud.print(deviceId, { route: 'etiqueta', raw: { text: zpl } });
-await cloud.print(deviceId, { route: 'danfe', pdf: pdfBuffer });</pre></div>
+await cloud.print(device, { route: 'etiqueta', raw: { text: zpl } });   <span class="c">// cifrado + assinado</span>
+await cloud.print(device, { route: 'danfe', pdf: pdfBuffer });</pre></div>
       <h3>Por que é seguro</h3>
       <ul>
         <li><b>Assinatura Ed25519 em cada trabalho.</b> A loja só aceita trabalhos assinados pela chave do seu sistema. Nem quem controla o relay consegue forjar uma impressão.</li>
+        <li><b>Criptografia de ponta a ponta.</b> O pedido é cifrado (AES-256-GCM) para uma chave gerada no computador da loja. O relay só vê bytes cifrados, sem nomes nem endereços.</li>
+        <li><b>Código de uso único.</b> Depois de conectar, o código não serve mais. E se o relay tentar trocar a chave da loja, o seu servidor percebe e não envia.</li>
         <li><b>Amarrado ao computador.</b> Um trabalho emitido para a Loja A é recusado na Loja B.</li>
         <li><b>Validade e anti-replay.</b> Trabalhos vencidos são recusados, e cada trabalho imprime uma única vez, mesmo após reiniciar.</li>
         <li><b>Gaveta bloqueada por padrão.</b> O lojista libera "Abrir gaveta", "PDF/HTML" e "RAW" por conexão.</li>
@@ -467,11 +470,14 @@ exiba a dica de correção quando a impressão falhar. Use o nome "NOME DO SISTE
       <h2>Segurança</h2>
       <p>O EasyPrint troca a cadeia de certificados de soluções antigas por regras simples de entender.</p>
       <ul>
+        <li><b>Gaveta bloqueada e limite de impressões.</b> Nenhum site abre a gaveta sem o lojista liberar. Cada origem tem limite de 120 impressões por minuto, o que segura um site invadido.</li>
         <li><b>Só local.</b> Escuta apenas em <code>127.0.0.1</code>. Nenhuma porta fica aberta para a rede.</li>
         <li><b>Permissão por site.</b> O navegador informa o endereço do site (<code>Origin</code>) e a página não consegue falsificá-lo. Cada site novo precisa da aprovação do lojista.</li>
         <li><b>Sem certificado raiz.</b> Navegadores já tratam <code>ws://127.0.0.1</code> como seguro, então não instalamos uma autoridade certificadora no Windows.</li>
         <li><b>Painel protegido.</b> Token secreto a cada execução, checagem de <code>Host</code> contra DNS rebinding e de <code>Origin</code> contra CSRF.</li>
         <li><b>Apps sem navegador</b> usam tokens revogáveis, guardados apenas como hash SHA-256.</li>
+        <li><b>Arquivos maliciosos.</b> HTML é renderizado sem scripts, sem rede local e sem acesso a arquivos do computador. Imagens têm limite de tamanho e proteção contra bomba de descompressão.</li>
+        <li><b>Downloads verificáveis.</b> A release publica o <code>SHA256SUMS</code>, e o instalador do Linux confere o hash antes de instalar.</li>
       </ul>
     </section>
 
@@ -489,7 +495,7 @@ exiba a dica de correção quando a impressão falhar. Use o nome "NOME DO SISTE
         <tr><td>Configuração</td><td>Pelo código do site</td><td class="yes">Assistente para o lojista</td></tr>
         <tr><td>PDF e HTML</td><td class="yes">Sim</td><td class="yes">Sim, inclusive em térmica e etiqueta</td></tr>
         <tr><td>Finalidades (impressora por tipo de documento)</td><td>Não</td><td class="yes">Sim, escolhidas pelo lojista</td></tr>
-        <tr><td>Impressão pelo servidor</td><td>Não</td><td class="yes">Sim, com trabalhos assinados (Ed25519)</td></tr>
+        <tr><td>Impressão pelo servidor</td><td>Não</td><td class="yes">Sim, assinada e cifrada de ponta a ponta</td></tr>
         <tr><td>Serial, USB e HID</td><td class="yes">Sim</td><td>Ainda não</td></tr>
         <tr><td>Linux</td><td class="yes">Sim</td><td class="yes">Sim (CUPS, USB direto, PDF, HTML)</td></tr>
         <tr><td>macOS</td><td class="yes">Maduro</td><td>Básico (via CUPS, sem binário pronto)</td></tr>

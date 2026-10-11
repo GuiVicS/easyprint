@@ -8,16 +8,19 @@
  *   DATA_FILE      arquivo JSON de persistência (padrão ./relay-data.json)
  *   TLS_CERT, TLS_KEY  caminhos do certificado — ou rode atrás de um proxy HTTPS (recomendado)
  *
- * O relay NÃO tem a chave privada: só guarda e entrega trabalhos já assinados pelo ERP.
- * Mesmo que alguém invada o relay, o EasyPrint recusa trabalhos sem assinatura válida.
+ * O relay NÃO tem a chave privada do ERP nem a da loja: só guarda e entrega trabalhos já
+ * ASSINADOS (Ed25519) e CIFRADOS (X25519 + AES-256-GCM). Quem invadir o relay não lê o conteúdo
+ * dos pedidos e não consegue forjar impressões.
  *
  * API do ERP (Authorization: Bearer RELAY_API_KEY)
- *   POST   /v1/devices                 { name }                    -> { deviceId, token }
- *   GET    /v1/devices/:id                                         -> status do computador
+ *   POST   /v1/devices                 { name }                    -> { deviceId, pairToken (uso único) }
+ *   GET    /v1/devices/:id                                         -> status + chave de criptografia da loja
  *   DELETE /v1/devices/:id                                         -> revoga
  *   POST   /v1/devices/:id/jobs        { id, payload, signature }  -> { id, status: 'queued' }
  *   GET    /v1/jobs/:id                                            -> { status, result }
- * API do EasyPrint (Authorization: Bearer <token do dispositivo>)
+ * API do EasyPrint
+ *   POST   /v1/agent/pair   (Bearer <pairToken>)  { encryptionKey, keyMac } -> { token }  (uso único)
+ *   (as rotas abaixo usam Authorization: Bearer <token do dispositivo>)
  *   GET    /v1/agent/jobs?wait=25      long-polling                -> { jobs: [...] }
  *   POST   /v1/agent/jobs/:id/result   { status, error?, printer?, pages? }
  *   POST   /v1/agent/status            { agent, printers, routes }
@@ -68,8 +71,25 @@ function createRelay({ apiKey, dataFile } = {}) {
     if (parts[0] !== 'v1') return fail(404, 'NOT_FOUND', 'Rota inexistente.');
 
     // ---------- API do EasyPrint (agente) ----------
+    if (parts[1] === 'agent' && parts[2] === 'pair' && req.method === 'POST') {
+      const device = auth && Object.values(db.devices).find((d) => !d.revoked && d.pairTokenHash && safeEq(d.pairTokenHash, sha256(auth)));
+      if (!device) return fail(401, 'UNAUTHORIZED', 'Código de conexão inválido, já usado ou revogado.');
+      const body = await readJson(req, 16 * 1024);
+      if (typeof body.encryptionKey !== 'string' || body.encryptionKey.length > 200 || typeof body.keyMac !== 'string' || !/^[0-9a-f]{64}$/.test(body.keyMac)) {
+        return fail(400, 'BAD_REQUEST', 'Envie { encryptionKey, keyMac }.');
+      }
+      const token = 'epd_' + crypto.randomBytes(32).toString('base64url');
+      device.pairTokenHash = null;           // código de conexão vira inútil
+      device.tokenHash = sha256(token);
+      device.encryptionKey = body.encryptionKey;
+      device.keyMac = body.keyMac;
+      device.paired = true; device.pairedAt = Date.now(); device.lastSeen = Date.now();
+      save();
+      return json(200, { token });
+    }
+
     if (parts[1] === 'agent') {
-      const device = auth && Object.values(db.devices).find((d) => !d.revoked && safeEq(d.tokenHash, sha256(auth)));
+      const device = auth && Object.values(db.devices).find((d) => !d.revoked && d.tokenHash && safeEq(d.tokenHash, sha256(auth)));
       if (!device) return fail(401, 'UNAUTHORIZED', 'Token do dispositivo inválido ou revogado.');
       device.lastSeen = Date.now(); save();
 
@@ -121,19 +141,19 @@ function createRelay({ apiKey, dataFile } = {}) {
     if (req.method === 'POST' && parts[1] === 'devices' && !parts[2]) {
       const body = await readJson(req, 16 * 1024);
       const id = 'dev_' + crypto.randomBytes(9).toString('base64url');
-      const token = 'epd_' + crypto.randomBytes(32).toString('base64url');
-      db.devices[id] = { id, name: String(body.name || 'Computador').slice(0, 80), tokenHash: sha256(token), createdAt: Date.now(), lastSeen: null, revoked: false };
+      const pairToken = 'epp_' + crypto.randomBytes(32).toString('base64url');
+      db.devices[id] = { id, name: String(body.name || 'Computador').slice(0, 80), pairTokenHash: sha256(pairToken), tokenHash: null, paired: false, createdAt: Date.now(), lastSeen: null, revoked: false };
       save();
-      return json(201, { deviceId: id, token });
+      return json(201, { deviceId: id, pairToken });
     }
     const device = parts[1] === 'devices' && db.devices[parts[2]];
     if (parts[1] === 'devices' && (!device || device.revoked)) return fail(404, 'NOT_FOUND', 'Dispositivo não encontrado.');
     if (req.method === 'GET' && device && !parts[3]) {
-      const { tokenHash, ...pub } = device;
-      return json(200, { ...pub, online: !!device.lastSeen && Date.now() - device.lastSeen < 60000 });
+      const { tokenHash, pairTokenHash, ...pub } = device;
+      return json(200, { ...pub, paired: !!device.paired, online: !!device.paired && !!device.lastSeen && Date.now() - device.lastSeen < 60000 });
     }
     if (req.method === 'DELETE' && device && !parts[3]) {
-      device.revoked = true; device.tokenHash = sha256(crypto.randomBytes(32)); save(); wake(device.id);
+      device.revoked = true; device.tokenHash = null; device.pairTokenHash = null; save(); wake(device.id);
       return json(200, { ok: true });
     }
     if (req.method === 'POST' && device && parts[3] === 'jobs') {
@@ -141,6 +161,7 @@ function createRelay({ apiKey, dataFile } = {}) {
       if (typeof body.id !== 'string' || typeof body.payload !== 'string' || typeof body.signature !== 'string') return fail(400, 'BAD_REQUEST', 'Envie { id, payload, signature } gerados pelo SDK.');
       let p; try { p = JSON.parse(body.payload); } catch { return fail(400, 'BAD_REQUEST', 'payload inválido.'); }
       if (p.id !== body.id || p.deviceId !== device.id) return fail(400, 'BAD_REQUEST', 'O trabalho não pertence a este dispositivo.');
+      if (p.v !== 2 || !p.enc) return fail(400, 'BAD_REQUEST', 'Trabalhos precisam ser cifrados (protocolo v2). Atualize o SDK de servidor.');
       if (db.jobs[body.id]) return fail(409, 'DUPLICATE', 'Trabalho já enviado.');
       const queued = Object.values(db.jobs).filter((j) => j.deviceId === device.id && j.status === 'queued').length;
       if (queued >= MAX_QUEUE) return fail(429, 'QUEUE_FULL', 'Fila cheia: o computador está offline há muito tempo?');

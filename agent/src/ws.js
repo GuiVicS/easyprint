@@ -17,6 +17,7 @@ class WebSocketConnection extends EventEmitter {
     this.req = req;
     this.origin = req.headers.origin || null;
     this.open = true;
+    this.maxPayload = MAX_PAYLOAD; // o servidor reduz antes da autorização
     this.buffer = Buffer.alloc(0);
     this.fragments = [];
     this.fragmentOpcode = 0;
@@ -34,6 +35,7 @@ class WebSocketConnection extends EventEmitter {
 
   _onData(chunk) {
     this.buffer = Buffer.concat([this.buffer, chunk]);
+    if (this.buffer.length > this.maxPayload + 64 * 1024) { this.close(1009, 'Mensagem grande demais'); return; }
     for (;;) {
       const frame = this._parseFrame();
       if (!frame) return;
@@ -56,10 +58,10 @@ class WebSocketConnection extends EventEmitter {
     } else if (len === 127) {
       if (b.length < 10) return null;
       const big = b.readBigUInt64BE(2);
-      if (big > BigInt(MAX_PAYLOAD)) return { error: 'Mensagem grande demais' };
+      if (big > BigInt(this.maxPayload)) return { error: 'Mensagem grande demais' };
       len = Number(big); offset = 10;
     }
-    if (len > MAX_PAYLOAD) return { error: 'Mensagem grande demais' };
+    if (len > this.maxPayload) return { error: 'Mensagem grande demais' };
     const maskLen = masked ? 4 : 0;
     if (b.length < offset + maskLen + len) return null;
     let payload = b.subarray(offset + maskLen, offset + maskLen + len);
@@ -139,4 +141,4 @@ function handleUpgrade(req, socket) {
   return new WebSocketConnection(socket, req);
 }
 
-module.exports = { handleUpgrade, acceptKey };
+module.exports = { handleUpgrade, acceptKey, MAX_PAYLOAD };

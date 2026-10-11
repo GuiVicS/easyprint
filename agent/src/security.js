@@ -30,6 +30,26 @@ class Security extends EventEmitter {
   }
 
   isAllowed(origin) { return this.config.get('sites').some((s) => s.origin === origin); }
+  siteFor(origin) { return this.config.get('sites').find((s) => s.origin === origin) || null; }
+
+  // Permissões finas por site/app (gaveta desligada por padrão)
+  updateSite(origin, patch) {
+    const sites = this.config.get('sites');
+    const s = sites.find((x) => x.origin === origin);
+    if (!s) return false;
+    if (patch.allowDrawer !== undefined) s.allowDrawer = !!patch.allowDrawer;
+    this.config.set('sites', sites);
+    return true;
+  }
+
+  updateToken(id, patch) {
+    const tokens = this.config.get('tokens');
+    const t = tokens.find((x) => x.id === id);
+    if (!t) return false;
+    if (patch.allowDrawer !== undefined) t.allowDrawer = !!patch.allowDrawer;
+    this.config.set('tokens', tokens);
+    return true;
+  }
   isDenied(origin) { return this.config.get('denied').some((s) => s.origin === origin); }
 
   touch(origin) {
@@ -50,7 +70,7 @@ class Security extends EventEmitter {
   createToken(name) {
     const token = 'ep_' + crypto.randomBytes(24).toString('base64url');
     const tokens = this.config.get('tokens');
-    const entry = { id: crypto.randomBytes(4).toString('hex'), name: String(name || 'App local').slice(0, 60), hash: sha256(token), createdAt: new Date().toISOString(), lastUsed: null };
+    const entry = { id: crypto.randomBytes(4).toString('hex'), name: String(name || 'App local').slice(0, 60), hash: sha256(token), createdAt: new Date().toISOString(), lastUsed: null, allowDrawer: false };
     tokens.push(entry);
     this.config.set('tokens', tokens);
     return { ...entry, token };
@@ -63,11 +83,13 @@ class Security extends EventEmitter {
     for (const p of this.pending.values()) {
       if (p.origin === origin) { if (waiter) p.waiters.add(waiter); return { request: p, isNew: false }; }
     }
+    // Proteção contra spam de pedidos: no máximo 5 pedidos pendentes ao mesmo tempo
+    if (this.pending.size >= 5) return { request: null, isNew: false };
     const p = { id: crypto.randomBytes(6).toString('hex'), origin, appName: String(appName || '').slice(0, 80) || null, createdAt: new Date().toISOString(), waiters: new Set() };
     if (waiter) p.waiters.add(waiter);
     this.pending.set(p.id, p);
     const last = this.lastPrompt.get(origin) || 0;
-    const shouldOpen = Date.now() - last > 20000;
+    const shouldOpen = Date.now() - last > 120000; // reabre a janela no máximo a cada 2 min por site
     this.lastPrompt.set(origin, Date.now());
     this.emit('pairing', this.publicRequest(p), shouldOpen);
     return { request: p, isNew: true };
@@ -86,7 +108,7 @@ class Security extends EventEmitter {
     this.pending.delete(id);
     if (approved) {
       const sites = this.config.get('sites').filter((s) => s.origin !== p.origin);
-      sites.push({ origin: p.origin, appName: p.appName, approvedAt: new Date().toISOString(), lastUsed: null });
+      sites.push({ origin: p.origin, appName: p.appName, approvedAt: new Date().toISOString(), lastUsed: null, allowDrawer: false });
       this.config.set('sites', sites);
       this.config.set('denied', this.config.get('denied').filter((d) => d.origin !== p.origin));
     } else if (remember) {
@@ -103,7 +125,7 @@ class Security extends EventEmitter {
     const o = normalizeOrigin(origin);
     if (!o) return null;
     const sites = this.config.get('sites').filter((s) => s.origin !== o);
-    sites.push({ origin: o, appName, approvedAt: new Date().toISOString(), lastUsed: null });
+    sites.push({ origin: o, appName, approvedAt: new Date().toISOString(), lastUsed: null, allowDrawer: false });
     this.config.set('sites', sites);
     this.config.set('denied', this.config.get('denied').filter((d) => d.origin !== o));
     return o;

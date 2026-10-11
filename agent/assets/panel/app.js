@@ -96,6 +96,8 @@
       if (ev.code) toast(`Trabalho recusado (${ev.connection}): ${ev.message}`, true);
       if (route().name === 'nuvem') render();
     });
+    es.addEventListener('ratelimit', (e) => { const r = JSON.parse(e.data); toast(`Impressões demais de ${r.source}: bloqueadas por segurança.`, true); });
+    es.addEventListener('update', () => { if (route().name === 'home') render(); });
     es.addEventListener('job', (e) => {
       const job = JSON.parse(e.data);
       if (route().name === 'historico') render();
@@ -248,6 +250,10 @@
 
     return h('div', null,
       h('h1', null, 'Olá! 👋'),
+      state.update && state.update.available ? h('div', { class: 'callout callout-ok', style: 'margin:12px 0' },
+        h('strong', null, `Nova versão disponível: ${state.update.latest}`),
+        'Ela traz correções e melhorias. Baixe e abra o novo EasyPrint; suas configurações são mantidas. ',
+        h('a', { href: state.update.url, target: '_blank', rel: 'noopener' }, 'Baixar a nova versão →')) : null,
       h('p', { class: 'muted' }, 'O EasyPrint deixa os sites que você autorizou imprimirem direto na sua impressora, sem janelas de impressão.'),
       state.pending.length ? h('div', { class: 'callout callout-warn', style: 'margin:16px 0' },
         h('strong', null, `${state.pending.length} site(s) aguardando sua permissão`),
@@ -270,8 +276,17 @@
       h('div', { class: 'card', style: 'margin-top:16px' },
         h('h3', null, 'Iniciar junto com o computador'),
         h('p', { class: 'muted small' }, 'Recomendado: assim a impressão funciona sempre, sem precisar lembrar de abrir o EasyPrint.'),
-        autostartSwitch()),
+        autostartSwitch(),
+        h('div', { style: 'margin-top:12px' }, permSwitch('Avisar quando houver nova versão', state.checkUpdates !== false, (v) => api('settings', { checkUpdates: v }), 'Consulta a página de versões no GitHub uma vez por dia'))),
       h('p', { class: 'muted small', style: 'margin-top:24px' }, `EasyPrint ${VERSION} · porta ${state.port} · `, h('a', { href: '#/assistente' }, 'refazer configuração')));
+  }
+
+  function permSwitch(label, checked, save, hint) {
+    const input = h('input', { type: 'checkbox', checked, onchange: async () => {
+      try { await save(input.checked); toast(input.checked ? `"${label}" liberado.` : `"${label}" bloqueado.`); }
+      catch (e) { toast(e.message, true); input.checked = !input.checked; }
+    } });
+    return h('label', { class: 'switch small', title: hint || '' }, input, label);
   }
 
   function autostartSwitch() {
@@ -599,14 +614,15 @@
       h('h1', null, 'Impressão pela nuvem'),
       h('p', { class: 'muted' }, 'Deixa o seu ERP ou loja virtual imprimir sozinho, mesmo sem nenhuma página aberta. Por exemplo: chegou um pedido de madrugada e a etiqueta já sai na impressora.'),
       h('div', { class: 'grid grid-3', style: 'margin:16px 0' },
-        h('div', { class: 'callout' }, h('strong', null, '🔒 Assinado'), 'Cada impressão é assinada pelo seu sistema. Trabalhos falsos são recusados.'),
+        h('div', { class: 'callout' }, h('strong', null, '🔒 Assinado e cifrado'), 'Cada impressão é assinada pelo seu sistema e cifrada só para este computador. Ninguém no caminho lê os pedidos.'),
         h('div', { class: 'callout' }, h('strong', null, '🚪 Sem portas abertas'), 'O EasyPrint só faz conexões de saída, por HTTPS.'),
         h('div', { class: 'callout' }, h('strong', null, '💵 Gaveta protegida'), 'Abrir gaveta pela nuvem vem bloqueado. Libere só se precisar.')),
       h('div', { class: 'card' },
         h('h3', null, 'Conectar a um sistema'),
         h('ol', { class: 'small', style: 'margin:0 0 12px;padding-left:20px' },
           h('li', null, 'No seu ERP, procure "Impressão automática" ou "EasyPrint" e gere um código de conexão para este computador.'),
-          h('li', null, 'Cole o código aqui e clique em Conectar.')),
+          h('li', null, 'Cole o código aqui e clique em Conectar. O código só funciona uma vez.'),
+          h('li', null, 'Confira se a "impressão digital da criptografia" que aparece aqui é igual à mostrada no seu sistema.')),
         code,
         h('div', { class: 'row', style: 'margin-top:10px' }, h('button', { class: 'btn btn-primary', onclick: async () => {
           try { const c = await api('cloud/add', { code: code.value }); toast(`Conectado a ${c.name}!`); render(); }
@@ -620,7 +636,8 @@
             h('div', { class: 'meta' },
               h('div', { class: 'row', style: 'gap:8px' }, h('strong', null, c.name), h('span', { class: 'pill ' + cls }, label), c.dev ? h('span', { class: 'pill pill-warn' }, 'modo desenvolvimento (sem HTTPS)') : null),
               h('div', { class: 'muted small' }, c.host, ' · dispositivo ', h('code', null, c.deviceId)),
-              h('div', { class: 'muted small' }, 'Impressão digital da chave: ', h('code', null, c.fingerprint)),
+              h('div', { class: 'muted small' }, 'Assinatura do sistema: ', h('code', null, c.fingerprint)),
+              c.encryptionFingerprint ? h('div', { class: 'muted small' }, '🔐 Impressão digital da criptografia: ', h('code', null, c.encryptionFingerprint)) : null,
               h('div', { class: 'muted small' }, `${c.printed} impressos · ${c.rejected} recusados`, c.lastContact ? ` · último contato ${fmtDate(c.lastContact)}` : ''),
               c.lastError ? h('div', { class: 'small', style: 'color:var(--danger);margin-top:4px' }, c.lastError) : null,
               h('div', { class: 'row', style: 'margin-top:10px;gap:18px' },
@@ -643,13 +660,14 @@
     const tokenName = h('input', { type: 'text', placeholder: 'Ex.: Servidor da loja' });
     return h('div', null,
       h('h1', null, 'Sites e apps autorizados'),
-      h('p', { class: 'muted' }, 'Só os endereços desta lista conseguem imprimir. Novos sites pedem permissão automaticamente.'),
+      h('p', { class: 'muted' }, 'Só os endereços desta lista conseguem imprimir. Novos sites pedem permissão automaticamente. Abrir a gaveta de dinheiro vem bloqueado: libere só para o sistema do caixa.'),
       state.pending.length ? h('div', { class: 'callout callout-warn', style: 'margin-bottom:16px' }, h('strong', null, 'Aguardando sua resposta'),
         state.pending.map((p) => h('div', { class: 'row', style: 'margin-top:6px' }, h('span', { class: 'mono' }, p.origin), h('a', { class: 'btn btn-sm btn-primary', href: '#/aprovar/' + p.id }, 'Responder')))) : null,
       h('div', { class: 'card' },
         h('h3', null, '✅ Autorizados'),
         state.sites.length ? state.sites.map((s) => h('div', { class: 'list-item' },
           h('div', { class: 'meta' }, h('div', { class: 'mono' }, s.origin), h('div', { class: 'muted small' }, s.appName ? s.appName + ' · ' : '', 'autorizado em ', fmtDate(s.approvedAt), ' · último uso ', fmtDate(s.lastUsed))),
+          permSwitch('Abrir gaveta', !!s.allowDrawer, (v) => api('sites/update', { origin: s.origin, allowDrawer: v }), 'Permite que este site abra a gaveta de dinheiro'),
           h('button', { class: 'btn btn-sm btn-danger', onclick: async () => { await api('sites/remove', { origin: s.origin }); toast('Permissão removida.'); render(); } }, 'Remover')))
           : h('div', { class: 'empty' }, h('span', { class: 'big' }, '🌐'), 'Nenhum site autorizado ainda. Quando um site pedir, ele aparece aqui.'),
         h('div', { class: 'row', style: 'margin-top:14px' }, h('div', { style: 'flex:1;min-width:220px' }, input),
@@ -661,6 +679,7 @@
         h('h3', null, '🔑 Apps locais (sem navegador)'),
         h('p', { class: 'muted small' }, 'Para sistemas que rodam no próprio computador (servidor local, app desktop, scripts). Eles usam um token em vez da permissão por site.'),
         state.tokens.map((t) => h('div', { class: 'list-item' }, h('div', { class: 'meta' }, h('strong', null, t.name), h('div', { class: 'muted small' }, 'criado em ', fmtDate(t.createdAt), ' · último uso ', fmtDate(t.lastUsed))),
+          permSwitch('Abrir gaveta', !!t.allowDrawer, (v) => api('tokens/update', { id: t.id, allowDrawer: v }), 'Permite que este app abra a gaveta de dinheiro'),
           h('button', { class: 'btn btn-sm btn-danger', onclick: async () => { await api('tokens/revoke', { id: t.id }); toast('Token revogado.'); render(); } }, 'Revogar'))),
         h('div', { class: 'row', style: 'margin-top:12px' }, h('div', { style: 'flex:1;min-width:220px' }, tokenName),
           h('button', { class: 'btn', onclick: async () => {

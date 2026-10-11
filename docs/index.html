@@ -250,7 +250,7 @@ footer nav { display: flex; gap: 20px; margin-left: auto; flex-wrap: wrap; }
         <div class="feat"><div class="spec">CP860 · CP850 · CP1252</div><h3>Acentos que saem certos</h3><p>"ação", "pão" e "maçã" na térmica. O teste guiado troca a tabela até sair perfeito.</p></div>
         <div class="feat"><div class="spec">printPdf · printHtml · printRaw</div><h3>PDF, HTML e ZPL</h3><p>Use os arquivos que seu sistema já gera. Códigos de barras saem nítidos, sem pontilhado.</p></div>
         <div class="feat"><div class="spec">routes: { etiqueta, danfe, pedido }</div><h3>Finalidades</h3><p>O sistema diz o que imprime e o lojista escolhe onde. O código nunca fixa nome de impressora.</p></div>
-        <div class="feat"><div class="spec">long-polling · HTTPS · só saída</div><h3>Impressão pela nuvem</h3><p>O pedido chega às 3h e a etiqueta já sai. Relay de referência e SDK de servidor incluídos.</p></div>
+        <div class="feat"><div class="spec">Ed25519 · X25519 · AES-256-GCM</div><h3>Impressão pela nuvem</h3><p>O pedido chega às 3h e a etiqueta já sai, cifrado de ponta a ponta. Relay e SDK de servidor incluídos.</p></div>
         <div class="feat"><div class="spec">Windows 10/11 · Linux x64</div><h3>Leve e sem burocracia</h3><p>Um executável. Sem Java, sem administrador, sem certificado raiz, sem regra de firewall.</p></div>
       </div>
     </div>
@@ -304,10 +304,12 @@ footer nav { display: flex; gap: 20px; margin-left: auto; flex-wrap: wrap; }
       <div class="sec-list">
         <div><div><b>Só local</b><span>Escuta apenas em 127.0.0.1. Nenhuma porta fica aberta para a rede.</span></div></div>
         <div><div><b>Permissão por site</b><span>Cada site novo precisa de um clique em Permitir. O endereço vem do navegador e não pode ser falsificado.</span></div></div>
-        <div><div><b>Trabalhos assinados</b><span>Na nuvem, cada impressão leva assinatura Ed25519 do seu sistema. Nem um relay invadido consegue imprimir.</span></div></div>
+        <div><div><b>Assinado e cifrado de ponta a ponta</b><span>Na nuvem, cada impressão é assinada (Ed25519) e cifrada (AES-256-GCM) só para o computador da loja. O relay não lê nem forja pedidos.</span></div></div>
         <div><div><b>Anti-replay e validade</b><span>Cada trabalho imprime uma única vez e expira. Um trabalho da Loja A é recusado na Loja B.</span></div></div>
-        <div><div><b>Gaveta protegida</b><span>Abrir a gaveta de dinheiro pela nuvem vem bloqueado até o lojista liberar.</span></div></div>
-        <div><div><b>HTML isolado</b><span>HTML é renderizado num navegador separado, com JavaScript bloqueado por CSP.</span></div></div>
+        <div><div><b>Gaveta protegida e limite de impressões</b><span>Nenhum site ou sistema abre a gaveta sem o lojista liberar. Um limite por minuto segura um site invadido.</span></div></div>
+        <div><div><b>HTML isolado</b><span>HTML é renderizado sem scripts, sem acesso à rede local e sem acesso aos arquivos do computador.</span></div></div>
+        <div><div><b>Downloads verificáveis</b><span>Cada release publica os hashes SHA-256. O instalador do Linux confere antes de instalar.</span></div></div>
+        <div><div><b>Código de conexão de uso único</b><span>Uma foto do código depois de conectado não serve para nada.</span></div></div>
       </div>
     </div>
   </section>
@@ -322,7 +324,7 @@ footer nav { display: flex; gap: 20px; margin-left: auto; flex-wrap: wrap; }
         <tr><td>Tirar o aviso de site não confiável</td><td>Certificado pago, a partir de US$ 449/ano</td><td class="y">Um clique em Permitir, grátis</td></tr>
         <tr><td>Configuração</td><td>No código do site</td><td class="y">Assistente para o lojista, em português</td></tr>
         <tr><td>Impressora por tipo de documento</td><td>Não</td><td class="y">Finalidades</td></tr>
-        <tr><td>Impressão pelo servidor</td><td>Não</td><td class="y">Sim, com trabalhos assinados</td></tr>
+        <tr><td>Impressão pelo servidor</td><td>Não</td><td class="y">Sim, assinada e cifrada de ponta a ponta</td></tr>
         <tr><td>Serial, USB e HID diretos</td><td class="y">Sim</td><td>Não (foco em impressão)</td></tr>
         <tr><td>Licença</td><td>LGPL 2.1</td><td class="y">MIT</td></tr>
       </table></div>

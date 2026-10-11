@@ -252,5 +252,11 @@ async function buildLinux() {
     else { const out = path.join(DIST, 'easyprint'); fs.copyFileSync(process.execPath, out); inject(out, process.platform === 'darwin' ? ['--macho-segment-name', 'NODE_SEA'] : []); }
   }
   if (process.argv.includes('--linux')) await buildLinux();
+  // Hashes para conferir a integridade dos downloads (publicados junto na release)
+  const assetsForSums = ['EasyPrint.exe', 'easyprint-linux-x64', 'easyprint-skill.zip', 'EASYPRINT_AI.md', 'easyprint.js', 'easyprint.mjs', 'easyprint.d.ts'];
+  const sums = assetsForSums.filter((f) => fs.existsSync(path.join(DIST, f)))
+    .map((f) => `${require('crypto').createHash('sha256').update(fs.readFileSync(path.join(DIST, f))).digest('hex')}  ${f}`);
+  fs.writeFileSync(path.join(DIST, 'SHA256SUMS'), sums.join('\n') + '\n');
+  console.log(`✔ dist/SHA256SUMS (${sums.length} arquivos)`);
   fs.rmSync(path.join(DIST, 'sea-prep.blob'), { force: true });
 })().catch((e) => { console.error('✖', e.message); process.exit(1); });

@@ -33,9 +33,12 @@ function decodePng(buf) {
   if (!channels) throw new Error('Tipo de cor PNG não suportado.');
   const lowDepth = depth < 8 && (colorType === 0 || colorType === 3);
   if ((depth !== 8 && !lowDepth) || interlace) throw new Error('PNG não suportado (use 8 bits, sem entrelaçamento — o SDK já converte).');
-  if (width * height > 4096 * 8192) throw new Error('Imagem grande demais.');
-  const raw = zlib.inflateSync(Buffer.concat(idat));
+  if (!width || !height || width > 8192 || height > 16384) throw new Error('Imagem grande demais (máx. 8192 × 16384).');
   const stride = Math.ceil(width * channels * depth / 8);
+  let raw;
+  try { raw = zlib.inflateSync(Buffer.concat(idat), { maxOutputLength: (stride + 1) * height + 1024 }); }
+  catch { throw new Error('Imagem corrompida ou maliciosa (descompressão acima do tamanho declarado).'); }
+  if (raw.length < (stride + 1) * height) throw new Error('Imagem incompleta.');
   const bpp = Math.max(1, channels * depth / 8);
   const packed = Buffer.alloc(stride * height);
   let prev = Buffer.alloc(stride);

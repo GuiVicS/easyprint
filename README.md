@@ -80,13 +80,17 @@ A documentação completa, com playground, receitas para React, Next, Vue, Angul
 - **Rede:** o agente escuta só em `127.0.0.1`.
 - **Navegador:** cada site (`Origin`) precisa ser aprovado uma vez pelo lojista.
 - **Painel:** exige token por execução, com checagem de `Host` contra DNS rebinding e de `Origin` contra CSRF.
+- **Sites e apps:** gaveta bloqueada por padrão, liberada por site; limite de 120 impressões por minuto por origem; limites de tamanho, mensagens e conexões antes da aprovação.
 - **Nuvem:**
-  - trabalhos assinados com Ed25519 e amarrados ao `deviceId`;
-  - validade máxima de 7 dias;
-  - anti-replay persistido em disco;
-  - gaveta bloqueada por padrão;
-  - token protegido com DPAPI no Windows e em arquivo `0600` no Linux.
-- **HTML:** renderizado em navegador headless com perfil separado e JavaScript bloqueado por CSP.
+  - trabalhos **assinados** (Ed25519) e **cifrados de ponta a ponta** (X25519 + AES-256-GCM) para uma chave gerada na loja;
+  - chave da loja autenticada com segredo que não passa pelo relay;
+  - código de conexão de uso único;
+  - amarrados ao `deviceId`, com validade e anti-replay;
+  - segredos protegidos com DPAPI no Windows e em arquivo `0600` no Linux.
+- **Arquivos:** HTML sem scripts, sem rede local e sem `file://` (CSP); PNG com limite de tamanho e proteção contra bomba de descompressão.
+- **Distribuição:** cada release publica o `SHA256SUMS`; o `install.sh` confere o hash antes de instalar. O app avisa quando há nova versão.
+
+Modelo de ameaças e como relatar falhas: [SECURITY.md](SECURITY.md).
 
 Encontrou uma falha? Abra uma [issue](https://github.com/GuiVicS/easyprint/issues) marcada como segurança, ou entre em contato pelo perfil do mantenedor.
 
@@ -96,7 +100,7 @@ Requer Node 22+. Nenhuma dependência npm em tempo de execução.
 
 ```bash
 npm run dev         # agente a partir do código-fonte (abre o assistente)
-npm test            # 43 testes: renderização, segurança, nuvem com ataques simulados, PDF/HTML, SDK
+npm test            # 57 testes: renderização, segurança, nuvem com ataques simulados, PDF/HTML, SDK
 npm run build       # dist/: agente em 1 arquivo, SDK (UMD/ESM/tipos), skill .zip, EASYPRINT_AI.md
 npm run build:exe   # + dist/EasyPrint.exe (ícone, sem console) e dist/easyprint-linux-x64 (via Docker)
 node build.js --site  # docs/: site do GitHub Pages

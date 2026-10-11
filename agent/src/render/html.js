@@ -23,10 +23,10 @@ function escapeAttr(s) { return String(s).replace(/&/g, '&amp;').replace(/"/g, '
 function prepareHtml(html, { baseUrl, pageSize, javascript = false } = {}) {
   let s = String(html);
   let head = '<meta charset="utf-8">';
-  if (!javascript) {
-    head += '<meta http-equiv="Content-Security-Policy" content="script-src \'none\'; object-src \'none\'; frame-src \'none\'; connect-src \'none\'">';
-    s = s.replace(SCRIPT_BLOCK, '').replace(SCRIPT_OPEN, '');
-  }
+  // CSP: nada de rede local nem arquivos do computador — só imagens/estilos/fontes HTTPS e data:
+  const scripts = javascript ? "script-src 'unsafe-inline' https:" : "script-src 'none'";
+  head += `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; ${scripts}; img-src https: data:; style-src 'unsafe-inline' https:; font-src https: data:; connect-src 'none'; object-src 'none'; frame-src 'none'; form-action 'none'; base-uri https:">`;
+  if (!javascript) s = s.replace(SCRIPT_BLOCK, '').replace(SCRIPT_OPEN, '');
   if (baseUrl) {
     try {
       const u = new URL(baseUrl);

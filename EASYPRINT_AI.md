@@ -512,7 +512,9 @@ Use `client.diagnose()` para pegar `title`, `message` e `steps` já escritos em 
 | `TOO_LARGE` | PDF acima de 25 MB, HTML acima de 5 MB ou RAW acima de 10 MB. | Imprimir menos páginas (`pages`). |
 | `UNSUPPORTED` | Falta um componente do sistema (Linux: `poppler-utils` para PDF em térmica; Chrome/Chromium para HTML). | Mostrar a `hint`, que traz o comando de instalação. |
 | `INVALID_ROUTE` | Nome de finalidade inválido. | **Bug no código**: use `[a-z0-9_-]`. |
-| `POLICY_BLOCKED` | (Nuvem) O lojista bloqueou gaveta, RAW ou PDF nessa conexão. | Explicar que precisa liberar em EasyPrint → Nuvem. |
+| `POLICY_BLOCKED` | Abrir a gaveta (ou RAW/PDF na nuvem) não está liberado para este site, app ou conexão. | O lojista libera em EasyPrint → Sites e apps (ou Nuvem) → "Abrir gaveta". |
+| `RATE_LIMITED` | Mais de 120 impressões por minuto (ou 2000 por hora) da mesma origem. | Em lotes grandes, espaçar os envios. Se não for esperado, pode ser um site invadido. |
+| `NOT_PAIRED` / `KEY_MISMATCH` | (SDK de servidor) A loja ainda não conectou, ou a chave da loja no relay não confere. | `NOT_PAIRED`: peça para colar o código. `KEY_MISMATCH`: **não** reenvie e investigue o relay. |
 
 ## Problemas comuns na loja
 
@@ -625,38 +627,49 @@ Para imprimir sem nenhuma tela aberta. O fluxo:
    console.log(generateKeys()); // { publicKey, privateKey }
    ```
 2. **Suba o relay** (`cloud/relay-server.js`, sem dependências) atrás de HTTPS, com `RELAY_API_KEY` (≥ 32 caracteres). Você também pode implementar o protocolo abaixo no seu próprio back-end.
-3. **Para cada loja/computador:** crie um dispositivo e mostre o código para o lojista colar em EasyPrint → Nuvem.
+3. **Para cada loja/computador:** crie um dispositivo. Guarde `deviceId` e `deviceSecret` (este é **segredo**, como uma senha) no seu banco e mostre o código para o lojista colar em EasyPrint → Nuvem.
    ```js
    const cloud = new EasyPrintCloud({ relayUrl: process.env.EP_RELAY_URL, apiKey: process.env.EP_RELAY_KEY, privateKey: process.env.EP_PRIVATE_KEY, publicKey: process.env.EP_PUBLIC_KEY });
-   const { deviceId, connectionCode } = await cloud.createDevice('Loja Centro');
-   // salve deviceId na loja; exiba connectionCode (EPC1....) na tela de configurações do ERP
+   const { deviceId, deviceSecret, connectionCode } = await cloud.createDevice('Loja Centro');
+   // salve { deviceId, deviceSecret } da loja; exiba connectionCode (EPC2....) — ele só funciona UMA vez
    ```
-4. **Imprima:**
+   Depois que o lojista conectar, mostre `(await cloud.device(deviceId)).encryptionFingerprint` na sua tela para ele comparar com o que aparece no EasyPrint.
+4. **Imprima** (o SDK cifra para a chave da loja e assina):
    ```js
-   await cloud.print(deviceId, { route: 'etiqueta', raw: { text: zpl } });
-   await cloud.print(deviceId, { route: 'danfe', pdf: pdfBuffer, pdfOptions: { pages: '1' } });
-   await cloud.print(deviceId, { route: 'pedido', document: { blocks: [...] }, copies: 2 });
-   await cloud.print(deviceId, { route: 'pedido', html: '<h1>Pedido 9</h1>' });
+   const device = { deviceId, deviceSecret };
+   await cloud.print(device, { route: 'etiqueta', raw: { text: zpl } });
+   await cloud.print(device, { route: 'danfe', pdf: pdfBuffer, pdfOptions: { pages: '1' } });
+   await cloud.print(device, { route: 'pedido', document: { blocks: [...] }, copies: 2 });
+   await cloud.print(device, { route: 'pedido', html: '<h1>Pedido 9</h1>' });
    const status = await cloud.waitJob(jobId); // done | failed | rejected
    const online = (await cloud.device(deviceId)).online;
    ```
+   Erros do `print`: `NOT_PAIRED` (o lojista ainda não colou o código) e `KEY_MISMATCH` (a chave da loja no relay não confere: possível adulteração, nada é enviado).
    O builder `EasyPrint.receipt()` também funciona no Node: `require('./easyprint.js').receipt()...build()`.
 
 ### Garantias de segurança
-- **Assinatura Ed25519:** o EasyPrint só aceita trabalhos assinados pela chave pública fixada no código de conexão. Um relay invadido não consegue imprimir.
-- **Amarrado ao computador:** o `deviceId` vai dentro do trabalho assinado e não pode ser reaproveitado em outra loja.
-- **Validade:** 24 h por padrão, no máximo 7 dias. Trabalhos vencidos são recusados.
-- **Anti-replay:** cada `id` só é impresso uma vez, mesmo após reiniciar o computador.
-- **Políticas na loja:** "Abrir gaveta" vem desligado. "PDF/HTML" e "Comandos RAW" podem ser desligados pelo lojista.
-- **Conexões só de saída, por HTTPS** (http apenas para `localhost` em desenvolvimento). O token do dispositivo é guardado com DPAPI no Windows e em arquivo `0600` no Linux.
+- **Assinatura Ed25519:** só trabalhos assinados pela chave do seu sistema são impressos. Um relay invadido não consegue forjar impressões.
+- **Criptografia de ponta a ponta:** cada trabalho é cifrado (X25519 + HKDF-SHA256 + AES-256-GCM) para uma chave gerada **no computador da loja**. O relay, e quem tiver acesso a ele, só vê bytes cifrados, sem nomes, endereços ou pedidos.
+- **Chave da loja autenticada:** o `deviceSecret` (que nunca passa pelo relay) autentica a chave pública da loja. Se o relay tentar trocá-la, o `print` falha com `KEY_MISMATCH`.
+- **Código de uso único:** no pareamento, o token do código é trocado por um definitivo. Uma foto do código depois de conectado não serve para nada.
+- **Amarrado ao computador, com validade e anti-replay:** um trabalho da Loja A é recusado na Loja B. A validade é de 24 h por padrão (máx. 7 dias), e cada trabalho imprime uma única vez.
+- **Políticas na loja:** "Abrir gaveta" vem desligado. "PDF/HTML" e "Comandos RAW" podem ser desligados. Há limite de 120 impressões por minuto por conexão.
+- **Só conexões de saída, por HTTPS.** Os segredos do dispositivo ficam com DPAPI no Windows e em arquivo `0600` no Linux.
 
 ### Protocolo do relay (para implementar no seu back-end)
+Pareamento (uma vez, com o `pairToken` do código): `POST /v1/agent/pair` ← `{ encryptionKey, keyMac }` → `{ token }`. O `pairToken` deixa de valer.
+`keyMac = HMAC-SHA256(deviceSecret, "easyprint-device-key-v2:" + deviceId + ":" + encryptionKey)` (hex). O ERP confere antes de cifrar.
+
 Agente → relay (`Authorization: Bearer <token do dispositivo>`):
 - `GET /v1/agent/jobs?wait=25` → `{ jobs: [{ id, payload, signature }] }`, com long-polling de até 30 s.
 - `POST /v1/agent/jobs/:id/result` ← `{ status: 'done'|'failed'|'rejected'|'duplicate', error?, printer?, pages? }`. `duplicate` significa que o trabalho já tinha sido impresso: trate como concluído.
 - `POST /v1/agent/status` ← `{ agent, printers, routes }`, enviado a cada 5 min.
 
-`payload` é um JSON (string) assinado: `{ v: 1, id, deviceId, ts, expiresAt, route?, printer?, copies?, jobName?, document? | text? | image? | raw? | pdf? | html?, pdfOptions?, htmlOptions?, options? }`. Reentregue trabalhos sem resultado depois de ~2 min.
+`payload` é um JSON (string) assinado com Ed25519: `{ v: 2, id, deviceId, ts, expiresAt, enc: { alg, epk, iv, ct, tag } }`.
+- `enc` é o trabalho cifrado com X25519 efêmero + HKDF-SHA256 (salt = `epk`, info = `"easyprint-job-v2:" + id`) + AES-256-GCM (AAD = `id + ":" + deviceId`).
+- O conteúdo decifrado é `{ route?, printer?, copies?, jobName?, document? | text? | image? | raw? | pdf? | html?, pdfOptions?, htmlOptions?, options? }`.
+
+O relay deve recusar trabalhos sem `enc` e reentregar os que ficarem sem resultado depois de ~2 min. A implementação de referência está em `cloud/easyprint-cloud.js` (`signJob`, `encryptFor`).
 
 
 ---
@@ -1416,20 +1429,29 @@ declare global {
 ```js
 'use strict';
 /*!
- * EasyPrint Cloud — SDK de servidor (Node 18+). Sem dependências.
+ * EasyPrint Cloud — SDK de servidor (Node 18+). Sem dependências. Protocolo v2.
  * Use no back-end do seu ERP / loja virtual para mandar impressões para os computadores das lojas.
  *
  *   const { EasyPrintCloud, generateKeys } = require('./easyprint-cloud');
- *   // 1x: gere as chaves e guarde a privada em segredo (variável de ambiente / cofre)
- *   const keys = generateKeys();
+ *   const keys = generateKeys();                 // 1x — guarde a privada em segredo (cofre / env)
  *   const cloud = new EasyPrintCloud({ relayUrl, apiKey, privateKey: keys.privateKey, publicKey: keys.publicKey });
- *   const { deviceId, connectionCode } = await cloud.createDevice('Loja Centro'); // cole o código no EasyPrint
- *   await cloud.print(deviceId, { route: 'etiqueta', raw: { text: zplDoMercadoLivre } });
  *
- * Segurança: cada trabalho é assinado com Ed25519. O EasyPrint só imprime trabalhos com assinatura
- * da SUA chave — nem quem controla o relay consegue forjar impressões.
+ *   // 1x por loja: guarde { deviceId, deviceSecret } no seu banco (deviceSecret é SEGREDO) e mostre o código ao lojista
+ *   const { deviceId, deviceSecret, connectionCode } = await cloud.createDevice('Loja Centro');
+ *
+ *   // depois que o lojista colar o código no EasyPrint:
+ *   await cloud.print({ deviceId, deviceSecret }, { route: 'etiqueta', raw: { text: zpl } });
+ *
+ * Segurança:
+ *  - Cada trabalho é ASSINADO (Ed25519, sua chave) e CIFRADO de ponta a ponta (X25519 + AES-256-GCM)
+ *    para a chave gerada no computador da loja. O relay só vê bytes cifrados.
+ *  - A chave da loja é autenticada com o deviceSecret (que nunca passa pelo relay): se o relay tentar
+ *    trocar a chave para ler os pedidos, print() recusa com KEY_MISMATCH.
  */
 const crypto = require('crypto');
+
+const KEY_MAC_LABEL = 'easyprint-device-key-v2';
+const HKDF_INFO = 'easyprint-job-v2';
 
 function generateKeys() {
   const { publicKey, privateKey } = crypto.generateKeyPairSync('ed25519');
@@ -1439,6 +1461,8 @@ function generateKeys() {
   };
 }
 
+const fingerprint = (b64) => crypto.createHash('sha256').update(Buffer.from(b64, 'base64')).digest('hex').slice(0, 16).match(/.{4}/g).join(' ');
+
 function toBase64(data) {
   if (data === undefined || data === null) return undefined;
   if (typeof data === 'string') return data.replace(/^data:[^,]*,/, '');
@@ -1447,30 +1471,50 @@ function toBase64(data) {
   throw new TypeError('Use string base64, Buffer, Uint8Array ou ArrayBuffer.');
 }
 
-function connectionCode({ relayUrl, token, deviceId, name, publicKey }) {
-  const json = JSON.stringify({ v: 1, url: relayUrl.replace(/\/+$/, ''), token, deviceId, name, publicKey });
-  return 'EPC1.' + Buffer.from(json, 'utf8').toString('base64url');
+function keyMac(deviceSecret, deviceId, encryptionKey) {
+  return crypto.createHmac('sha256', Buffer.from(deviceSecret, 'base64url')).update(`${KEY_MAC_LABEL}:${deviceId}:${encryptionKey}`).digest('hex');
 }
 
-/** Monta e assina um trabalho. Útil se você implementar o relay no seu próprio back-end. */
-function signJob({ deviceId, job, privateKey, ttlMs = 24 * 3600 * 1000 }) {
+function connectionCode({ relayUrl, pairToken, deviceSecret, deviceId, name, publicKey }) {
+  const json = JSON.stringify({ v: 2, url: relayUrl.replace(/\/+$/, ''), pairToken, pairSecret: deviceSecret, deviceId, name, publicKey });
+  return 'EPC2.' + Buffer.from(json, 'utf8').toString('base64url');
+}
+
+function encryptFor(encryptionKey, { id, deviceId }, plainObj) {
+  const devicePub = crypto.createPublicKey({ key: Buffer.from(encryptionKey, 'base64'), format: 'der', type: 'spki' });
+  const eph = crypto.generateKeyPairSync('x25519');
+  const epk = eph.publicKey.export({ format: 'der', type: 'spki' });
+  const shared = crypto.diffieHellman({ privateKey: eph.privateKey, publicKey: devicePub });
+  const key = Buffer.from(crypto.hkdfSync('sha256', shared, epk, `${HKDF_INFO}:${id}`, 32));
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  cipher.setAAD(Buffer.from(`${id}:${deviceId}`));
+  const ct = Buffer.concat([cipher.update(JSON.stringify(plainObj), 'utf8'), cipher.final()]);
+  return { alg: 'X25519-HKDF-SHA256-A256GCM', epk: epk.toString('base64'), iv: iv.toString('base64'), ct: ct.toString('base64'), tag: cipher.getAuthTag().toString('base64') };
+}
+
+/** Monta, cifra e assina um trabalho. Útil se você implementar o relay no seu próprio back-end. */
+function signJob({ deviceId, encryptionKey, job, privateKey, ttlMs = 24 * 3600 * 1000 }) {
   if (!deviceId) throw new Error('deviceId é obrigatório');
+  if (!encryptionKey) throw new Error('encryptionKey (chave do computador da loja) é obrigatória');
   if (ttlMs > 7 * 24 * 3600 * 1000) throw new Error('A validade máxima é 7 dias');
   const key = typeof privateKey === 'string'
     ? crypto.createPrivateKey({ key: Buffer.from(privateKey, 'base64'), format: 'der', type: 'pkcs8' })
     : privateKey;
   const ts = Date.now();
-  const payloadObj = {
-    v: 1, id: crypto.randomUUID(), deviceId: String(deviceId), ts, expiresAt: ts + ttlMs,
+  const id = crypto.randomUUID();
+  const inner = {
     printer: job.printer, route: job.route, copies: job.copies, jobName: job.jobName, options: job.options,
     document: job.document && typeof job.document.build === 'function' ? job.document.build() : job.document,
     text: job.text, image: job.image,
     raw: job.raw === undefined ? undefined : (job.raw && typeof job.raw === 'object' && !Buffer.isBuffer(job.raw) && !(job.raw instanceof Uint8Array) ? job.raw : toBase64(job.raw)),
     pdf: toBase64(job.pdf), pdfOptions: job.pdfOptions, html: job.html, htmlOptions: job.htmlOptions,
   };
-  const payload = JSON.stringify(payloadObj);
+  const outer = { v: 2, id, deviceId: String(deviceId), ts, expiresAt: ts + ttlMs };
+  outer.enc = encryptFor(encryptionKey, outer, inner);
+  const payload = JSON.stringify(outer);
   const signature = crypto.sign(null, Buffer.from(payload, 'utf8'), key).toString('base64');
-  return { id: payloadObj.id, payload, signature };
+  return { id, payload, signature };
 }
 
 class EasyPrintCloud {
@@ -1487,6 +1531,7 @@ class EasyPrintCloud {
     this.apiKey = apiKey;
     this.privateKey = crypto.createPrivateKey({ key: Buffer.from(privateKey, 'base64'), format: 'der', type: 'pkcs8' });
     this.publicKey = publicKey;
+    this.keys = new Map(); // deviceId -> encryptionKey já verificada
   }
 
   async _req(method, path, body) {
@@ -1503,30 +1548,57 @@ class EasyPrintCloud {
     return data;
   }
 
-  /** Cria um computador/loja. Mostre o connectionCode para o lojista colar no EasyPrint (Nuvem → Conectar). */
+  /**
+   * Cria um computador/loja. Guarde deviceId e deviceSecret (segredo!) no seu banco e mostre o
+   * connectionCode para o lojista colar no EasyPrint (Nuvem → Conectar). O código é de uso único.
+   */
   async createDevice(name) {
     const d = await this._req('POST', '/v1/devices', { name });
-    return { deviceId: d.deviceId, connectionCode: connectionCode({ relayUrl: this.relayUrl, token: d.token, deviceId: d.deviceId, name, publicKey: this.publicKey }) };
+    const deviceSecret = crypto.randomBytes(32).toString('base64url');
+    return {
+      deviceId: d.deviceId,
+      deviceSecret,
+      connectionCode: connectionCode({ relayUrl: this.relayUrl, pairToken: d.pairToken, deviceSecret, deviceId: d.deviceId, name, publicKey: this.publicKey }),
+    };
   }
 
-  /** Status: { online, lastSeen, agent, printers, routes } */
-  device(deviceId) { return this._req('GET', `/v1/devices/${encodeURIComponent(deviceId)}`); }
+  /** Status: { online, paired, lastSeen, agent, printers, routes, encryptionFingerprint } */
+  async device(deviceId) {
+    const d = await this._req('GET', `/v1/devices/${encodeURIComponent(deviceId)}`);
+    return { ...d, encryptionFingerprint: d.encryptionKey ? fingerprint(d.encryptionKey) : null };
+  }
 
   /** Revoga o acesso de um computador (o EasyPrint dele para de receber trabalhos). */
-  revokeDevice(deviceId) { return this._req('DELETE', `/v1/devices/${encodeURIComponent(deviceId)}`); }
+  revokeDevice(deviceId) { this.keys.delete(deviceId); return this._req('DELETE', `/v1/devices/${encodeURIComponent(deviceId)}`); }
+
+  /** Busca a chave de criptografia da loja e confere que ela não foi trocada pelo relay. */
+  async deviceKey({ deviceId, deviceSecret }) {
+    if (this.keys.has(deviceId)) return this.keys.get(deviceId);
+    if (!deviceSecret) throw Object.assign(new Error('deviceSecret é obrigatório (guardado ao criar o dispositivo).'), { code: 'MISSING_SECRET' });
+    const d = await this._req('GET', `/v1/devices/${encodeURIComponent(deviceId)}`);
+    if (!d.paired || !d.encryptionKey) throw Object.assign(new Error('Este computador ainda não colou o código de conexão no EasyPrint.'), { code: 'NOT_PAIRED' });
+    const expected = keyMac(deviceSecret, deviceId, d.encryptionKey);
+    const ok = typeof d.keyMac === 'string' && d.keyMac.length === expected.length && crypto.timingSafeEqual(Buffer.from(d.keyMac), Buffer.from(expected));
+    if (!ok) throw Object.assign(new Error('A chave do computador não confere: possível adulteração no relay. Nada foi enviado.'), { code: 'KEY_MISMATCH' });
+    this.keys.set(deviceId, d.encryptionKey);
+    return d.encryptionKey;
+  }
 
   /**
-   * Envia uma impressão.
-   * job: { route?, printer?, copies?, jobName?, document? | text? | image? | raw? | pdf?, pdfOptions?, options? }
+   * Envia uma impressão (cifrada e assinada).
+   * device: { deviceId, deviceSecret }
+   * job: { route?, printer?, copies?, jobName?, document? | text? | image? | raw? | pdf? | html?, pdfOptions?, htmlOptions?, options? }
    * opts: { ttlMs } validade do trabalho (padrão 24h, máx. 7 dias)
    */
-  async print(deviceId, job, opts = {}) {
-    const signed = signJob({ deviceId, job, privateKey: this.privateKey, ttlMs: opts.ttlMs });
-    await this._req('POST', `/v1/devices/${encodeURIComponent(deviceId)}/jobs`, signed);
+  async print(device, job, opts = {}) {
+    if (!device || typeof device !== 'object' || !device.deviceId) throw new TypeError('Use cloud.print({ deviceId, deviceSecret }, job)');
+    const encryptionKey = await this.deviceKey(device);
+    const signed = signJob({ deviceId: device.deviceId, encryptionKey, job, privateKey: this.privateKey, ttlMs: opts.ttlMs });
+    await this._req('POST', `/v1/devices/${encodeURIComponent(device.deviceId)}/jobs`, signed);
     return { jobId: signed.id };
   }
 
-  /** Situação do trabalho: queued | delivered | done | failed | rejected | duplicate */
+  /** Situação do trabalho: queued | delivered | done | failed | rejected */
   job(jobId) { return this._req('GET', `/v1/jobs/${encodeURIComponent(jobId)}`); }
 
   /** Espera o resultado (útil em scripts e testes). */
@@ -1541,6 +1613,6 @@ class EasyPrintCloud {
   }
 }
 
-module.exports = { EasyPrintCloud, generateKeys, signJob, connectionCode };
+module.exports = { EasyPrintCloud, generateKeys, signJob, encryptFor, keyMac, fingerprint, connectionCode };
 
 ```

@@ -1,7 +1,11 @@
 'use strict';
 const http = require('http');
 const path = require('path');
-const { handleUpgrade } = require('./ws');
+const { handleUpgrade, MAX_PAYLOAD } = require('./ws');
+
+const PRE_AUTH_MAX_PAYLOAD = 64 * 1024;   // antes de autorizado: mensagens pequenas
+const MAX_CLIENTS = 64;
+const MAX_CLIENTS_PER_ORIGIN = 10;
 const { asset } = require('./assets');
 const { VERSION } = require('./config');
 const { EPError, toErrorPayload } = require('./errors');
@@ -11,7 +15,7 @@ const system = require('./system');
 
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon' };
 
-function createServer({ config, security, printing, cloud, log, onQuit }) {
+function createServer({ config, security, printing, cloud, updates, log, onQuit }) {
   let port = null;
   const sse = new Set();
   const trayQueue = [];
@@ -41,6 +45,13 @@ function createServer({ config, security, printing, cloud, log, onQuit }) {
       broadcastAdmin('cloud', s);
       trayQueue.push({ title: 'EasyPrint bloqueou um trabalho', text: `${s.connection}: ${s.message}`, level: 'Warning' });
     });
+  }
+
+  if (updates) {
+    updates.onUpdate = (u) => {
+      broadcastAdmin('update', u);
+      trayQueue.push({ title: `EasyPrint ${u.latest} disponível`, text: 'Abra o painel para baixar a nova versão com correções.', level: 'Info' });
+    };
   }
 
   // ---------- HTTP ----------
@@ -141,6 +152,8 @@ function createServer({ config, security, printing, cloud, log, onQuit }) {
         return ok(o);
       }
       case 'POST sites/remove': security.removeSite(body.origin); return ok(true);
+      case 'POST sites/update': return ok(security.updateSite(String(body.origin), body));
+      case 'POST tokens/update': return ok(security.updateToken(String(body.id), body));
       case 'POST sites/unblock': security.unblock(body.origin); return ok(true);
       case 'POST tokens': return ok(security.createToken(body.name));
       case 'POST tokens/revoke': security.revokeToken(body.id); return ok(true);
@@ -148,6 +161,7 @@ function createServer({ config, security, printing, cloud, log, onQuit }) {
       case 'POST settings':
         if (body.notifications !== undefined) config.set('notifications', !!body.notifications);
         if (body.setupDone !== undefined) config.set('setupDone', !!body.setupDone);
+        if (body.checkUpdates !== undefined) config.set('checkUpdates', !!body.checkUpdates);
         return ok(true);
       case 'GET tray': {
         const notifications = config.get('notifications') ? trayQueue.splice(0, trayQueue.length) : trayQueue.splice(0, trayQueue.length).filter((n) => n.level === 'Warning');
@@ -185,6 +199,7 @@ function createServer({ config, security, printing, cloud, log, onQuit }) {
       tokens: config.get('tokens').map(({ hash, ...t }) => t),
       routes: config.get('routes') || {}, knownRoutes: config.get('knownRoutes') || {},
       cloud: cloud ? cloud.publicState() : [],
+      update: updates ? updates.state : null, checkUpdates: config.get('checkUpdates') !== false,
       pending: security.pendingList(), connections: clients.size, configDir: config.dir,
     };
   }
@@ -193,13 +208,17 @@ function createServer({ config, security, printing, cloud, log, onQuit }) {
   server.on('upgrade', (req, socket) => {
     const url = new URL(req.url, 'http://127.0.0.1');
     if (url.pathname !== '/ws' || !security.validHost(req, port)) { socket.end('HTTP/1.1 403 Forbidden\r\n\r\n'); return; }
+    const origin = normalizeOrigin(req.headers.origin);
+    const sameOrigin = [...clients].filter((c) => c.origin === origin).length;
+    if (clients.size >= MAX_CLIENTS || sameOrigin >= MAX_CLIENTS_PER_ORIGIN) { socket.end('HTTP/1.1 429 Too Many Requests\r\n\r\n'); return; }
     const ws = handleUpgrade(req, socket);
     if (!ws) return;
-    const client = { ws, origin: normalizeOrigin(req.headers.origin), rawOrigin: req.headers.origin || null, authorized: false, appName: null, via: null };
+    ws.maxPayload = PRE_AUTH_MAX_PAYLOAD;
+    const client = { ws, origin, rawOrigin: req.headers.origin || null, authorized: false, appName: null, via: null, msgs: [] };
     clients.add(client);
     const waiter = (approved) => {
       client.authorized = approved;
-      if (approved) { client.via = 'site'; security.touch(client.origin); printing.registerRoutes(client.routes, client.origin); }
+      if (approved) { authorize(client, 'site'); security.touch(client.origin); printing.registerRoutes(client.routes, client.origin); }
       ws.send({ event: 'authorization', data: { state: approved ? 'ready' : 'denied' } });
     };
     client.waiter = waiter;
@@ -207,7 +226,21 @@ function createServer({ config, security, printing, cloud, log, onQuit }) {
     ws.on('close', () => { clients.delete(client); security.removeWaiter(waiter); });
   });
 
+  function authorize(client, via) {
+    client.authorized = true;
+    client.via = via;
+    client.ws.maxPayload = MAX_PAYLOAD;
+  }
+
+  const rateNotified = new Map();
   async function onMessage(client, text) {
+    // Antes da autorização: no máximo 30 mensagens a cada 10 s (evita abuso por sites não aprovados)
+    if (!client.authorized) {
+      const now = Date.now();
+      client.msgs = client.msgs.filter((t) => now - t < 10000);
+      client.msgs.push(now);
+      if (client.msgs.length > 30) { client.ws.close(1008, 'Mensagens demais'); return; }
+    }
     let msg;
     try { msg = JSON.parse(text); } catch { return client.ws.send({ ok: false, error: { code: 'BAD_REQUEST', message: 'JSON inválido.' } }); }
     const { id, method, params = {} } = msg;
@@ -233,7 +266,21 @@ function createServer({ config, security, printing, cloud, log, onQuit }) {
         }
         case 'print': {
           if (client.origin) security.touch(client.origin);
-          return reply(await printing.print(params, { origin: client.origin || client.via, appName: client.appName }));
+          const entry = client.tokenId ? config.get('tokens').find((t) => t.id === client.tokenId) : security.siteFor(client.origin);
+          const rateKey = client.tokenId ? `token:${client.tokenId}` : `site:${client.origin}`;
+          try {
+            return reply(await printing.print(params, {
+              origin: client.origin || client.via, appName: client.appName, rateKey,
+              policy: { allowDrawer: !!(entry && entry.allowDrawer) },
+            }));
+          } catch (e) {
+            if (e.code === 'RATE_LIMITED' && Date.now() - (rateNotified.get(rateKey) || 0) > 5 * 60000) {
+              rateNotified.set(rateKey, Date.now());
+              trayQueue.push({ title: 'Impressões demais bloqueadas', text: `${client.origin || client.via} tentou imprimir muitas vezes em pouco tempo.`, level: 'Warning' });
+              broadcastAdmin('ratelimit', { source: client.origin || client.via });
+            }
+            throw e;
+          }
         }
         default: throw new EPError('UNKNOWN_METHOD', `Método desconhecido: ${method}`);
       }
@@ -247,7 +294,8 @@ function createServer({ config, security, printing, cloud, log, onQuit }) {
     if (params.token) {
       const t = security.checkToken(params.token);
       if (!t) throw new EPError('INVALID_TOKEN', 'Token inválido ou revogado.', 'Crie um novo token no painel do EasyPrint, em "Apps locais".');
-      client.authorized = true; client.via = `token:${t.name}`;
+      authorize(client, `token:${t.name}`);
+      client.tokenId = t.id;
       printing.registerRoutes(client.routes, client.via);
       return { agent, state: 'ready' };
     }
@@ -256,7 +304,7 @@ function createServer({ config, security, printing, cloud, log, onQuit }) {
         'Abra a página por http(s), ou crie um token no painel do EasyPrint em "Apps locais" e passe em EasyPrint.connect({ token }).');
     }
     if (security.isAllowed(client.origin)) {
-      client.authorized = true; client.via = 'site'; security.touch(client.origin);
+      authorize(client, 'site'); security.touch(client.origin);
       printing.registerRoutes(client.routes, client.origin);
       return { agent, state: 'ready' };
     }

@@ -62,6 +62,7 @@ async function main() {
   const security = new Security(config);
   const printing = new PrintService(config, driver, log, { findBrowser: system.findAppBrowser });
   const cloud = new (require('./cloud').CloudRelay)({ config, printing, driver, log });
+  const updates = new (require('./updates').UpdateChecker)({ config, log });
 
   let tray = null;
   const shutdown = () => {
@@ -73,13 +74,14 @@ async function main() {
     setTimeout(() => process.exit(0), 300);
   };
 
-  const app = createServer({ config, security, printing, cloud, log, onQuit: shutdown });
+  const app = createServer({ config, security, printing, cloud, updates, log, onQuit: shutdown });
   if (noOpen) { system.openUrl = () => {}; system.openApp = () => {}; }
   const port = await app.listen(ports);
   log(`EasyPrint ${VERSION} ouvindo em http://127.0.0.1:${port} (config: ${config.dir})`);
 
   driver.start && driver.start().catch((e) => log('Helper de impressão:', e.message));
   cloud.startAll();
+  updates.start();
   tray = system.startTray({ port, adminToken: security.adminToken, runtimeDir: config.path('runtime'), log });
 
   if (!config.get('setupDone') && !flag('--background')) system.openApp(`http://127.0.0.1:${port}/#/assistente`);

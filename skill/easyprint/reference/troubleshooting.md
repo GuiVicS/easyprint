@@ -33,7 +33,9 @@ Use `client.diagnose()` para pegar `title`, `message` e `steps` já escritos em 
 | `TOO_LARGE` | PDF acima de 25 MB, HTML acima de 5 MB ou RAW acima de 10 MB. | Imprimir menos páginas (`pages`). |
 | `UNSUPPORTED` | Falta um componente do sistema (Linux: `poppler-utils` para PDF em térmica; Chrome/Chromium para HTML). | Mostrar a `hint`, que traz o comando de instalação. |
 | `INVALID_ROUTE` | Nome de finalidade inválido. | **Bug no código**: use `[a-z0-9_-]`. |
-| `POLICY_BLOCKED` | (Nuvem) O lojista bloqueou gaveta, RAW ou PDF nessa conexão. | Explicar que precisa liberar em EasyPrint → Nuvem. |
+| `POLICY_BLOCKED` | Abrir a gaveta (ou RAW/PDF na nuvem) não está liberado para este site, app ou conexão. | O lojista libera em EasyPrint → Sites e apps (ou Nuvem) → "Abrir gaveta". |
+| `RATE_LIMITED` | Mais de 120 impressões por minuto (ou 2000 por hora) da mesma origem. | Em lotes grandes, espaçar os envios. Se não for esperado, pode ser um site invadido. |
+| `NOT_PAIRED` / `KEY_MISMATCH` | (SDK de servidor) A loja ainda não conectou, ou a chave da loja no relay não confere. | `NOT_PAIRED`: peça para colar o código. `KEY_MISMATCH`: **não** reenvie e investigue o relay. |
 
 ## Problemas comuns na loja
 

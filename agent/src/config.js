@@ -3,7 +3,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const VERSION = '1.0.0';
+const VERSION = '1.0.1';
 const DEFAULT_PORTS = [17777, 17778, 17779];
 
 function homeDir() {
@@ -26,6 +26,7 @@ const DEFAULTS = {
   cloud: [],                // conexões de impressão pela nuvem (veja cloud.js)
   autostart: false,
   notifications: true,
+  checkUpdates: true,       // aviso de nova versão (consulta pública à página de releases)
 };
 
 class Config {

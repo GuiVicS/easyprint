@@ -98,35 +98,46 @@ Para imprimir sem nenhuma tela aberta. O fluxo:
    console.log(generateKeys()); // { publicKey, privateKey }
    ```
 2. **Suba o relay** (`cloud/relay-server.js`, sem dependências) atrás de HTTPS, com `RELAY_API_KEY` (≥ 32 caracteres). Você também pode implementar o protocolo abaixo no seu próprio back-end.
-3. **Para cada loja/computador:** crie um dispositivo e mostre o código para o lojista colar em EasyPrint → Nuvem.
+3. **Para cada loja/computador:** crie um dispositivo. Guarde `deviceId` e `deviceSecret` (este é **segredo**, como uma senha) no seu banco e mostre o código para o lojista colar em EasyPrint → Nuvem.
    ```js
    const cloud = new EasyPrintCloud({ relayUrl: process.env.EP_RELAY_URL, apiKey: process.env.EP_RELAY_KEY, privateKey: process.env.EP_PRIVATE_KEY, publicKey: process.env.EP_PUBLIC_KEY });
-   const { deviceId, connectionCode } = await cloud.createDevice('Loja Centro');
-   // salve deviceId na loja; exiba connectionCode (EPC1....) na tela de configurações do ERP
+   const { deviceId, deviceSecret, connectionCode } = await cloud.createDevice('Loja Centro');
+   // salve { deviceId, deviceSecret } da loja; exiba connectionCode (EPC2....) — ele só funciona UMA vez
    ```
-4. **Imprima:**
+   Depois que o lojista conectar, mostre `(await cloud.device(deviceId)).encryptionFingerprint` na sua tela para ele comparar com o que aparece no EasyPrint.
+4. **Imprima** (o SDK cifra para a chave da loja e assina):
    ```js
-   await cloud.print(deviceId, { route: 'etiqueta', raw: { text: zpl } });
-   await cloud.print(deviceId, { route: 'danfe', pdf: pdfBuffer, pdfOptions: { pages: '1' } });
-   await cloud.print(deviceId, { route: 'pedido', document: { blocks: [...] }, copies: 2 });
-   await cloud.print(deviceId, { route: 'pedido', html: '<h1>Pedido 9</h1>' });
+   const device = { deviceId, deviceSecret };
+   await cloud.print(device, { route: 'etiqueta', raw: { text: zpl } });
+   await cloud.print(device, { route: 'danfe', pdf: pdfBuffer, pdfOptions: { pages: '1' } });
+   await cloud.print(device, { route: 'pedido', document: { blocks: [...] }, copies: 2 });
+   await cloud.print(device, { route: 'pedido', html: '<h1>Pedido 9</h1>' });
    const status = await cloud.waitJob(jobId); // done | failed | rejected
    const online = (await cloud.device(deviceId)).online;
    ```
+   Erros do `print`: `NOT_PAIRED` (o lojista ainda não colou o código) e `KEY_MISMATCH` (a chave da loja no relay não confere: possível adulteração, nada é enviado).
    O builder `EasyPrint.receipt()` também funciona no Node: `require('./easyprint.js').receipt()...build()`.
 
 ### Garantias de segurança
-- **Assinatura Ed25519:** o EasyPrint só aceita trabalhos assinados pela chave pública fixada no código de conexão. Um relay invadido não consegue imprimir.
-- **Amarrado ao computador:** o `deviceId` vai dentro do trabalho assinado e não pode ser reaproveitado em outra loja.
-- **Validade:** 24 h por padrão, no máximo 7 dias. Trabalhos vencidos são recusados.
-- **Anti-replay:** cada `id` só é impresso uma vez, mesmo após reiniciar o computador.
-- **Políticas na loja:** "Abrir gaveta" vem desligado. "PDF/HTML" e "Comandos RAW" podem ser desligados pelo lojista.
-- **Conexões só de saída, por HTTPS** (http apenas para `localhost` em desenvolvimento). O token do dispositivo é guardado com DPAPI no Windows e em arquivo `0600` no Linux.
+- **Assinatura Ed25519:** só trabalhos assinados pela chave do seu sistema são impressos. Um relay invadido não consegue forjar impressões.
+- **Criptografia de ponta a ponta:** cada trabalho é cifrado (X25519 + HKDF-SHA256 + AES-256-GCM) para uma chave gerada **no computador da loja**. O relay, e quem tiver acesso a ele, só vê bytes cifrados, sem nomes, endereços ou pedidos.
+- **Chave da loja autenticada:** o `deviceSecret` (que nunca passa pelo relay) autentica a chave pública da loja. Se o relay tentar trocá-la, o `print` falha com `KEY_MISMATCH`.
+- **Código de uso único:** no pareamento, o token do código é trocado por um definitivo. Uma foto do código depois de conectado não serve para nada.
+- **Amarrado ao computador, com validade e anti-replay:** um trabalho da Loja A é recusado na Loja B. A validade é de 24 h por padrão (máx. 7 dias), e cada trabalho imprime uma única vez.
+- **Políticas na loja:** "Abrir gaveta" vem desligado. "PDF/HTML" e "Comandos RAW" podem ser desligados. Há limite de 120 impressões por minuto por conexão.
+- **Só conexões de saída, por HTTPS.** Os segredos do dispositivo ficam com DPAPI no Windows e em arquivo `0600` no Linux.
 
 ### Protocolo do relay (para implementar no seu back-end)
+Pareamento (uma vez, com o `pairToken` do código): `POST /v1/agent/pair` ← `{ encryptionKey, keyMac }` → `{ token }`. O `pairToken` deixa de valer.
+`keyMac = HMAC-SHA256(deviceSecret, "easyprint-device-key-v2:" + deviceId + ":" + encryptionKey)` (hex). O ERP confere antes de cifrar.
+
 Agente → relay (`Authorization: Bearer <token do dispositivo>`):
 - `GET /v1/agent/jobs?wait=25` → `{ jobs: [{ id, payload, signature }] }`, com long-polling de até 30 s.
 - `POST /v1/agent/jobs/:id/result` ← `{ status: 'done'|'failed'|'rejected'|'duplicate', error?, printer?, pages? }`. `duplicate` significa que o trabalho já tinha sido impresso: trate como concluído.
 - `POST /v1/agent/status` ← `{ agent, printers, routes }`, enviado a cada 5 min.
 
-`payload` é um JSON (string) assinado: `{ v: 1, id, deviceId, ts, expiresAt, route?, printer?, copies?, jobName?, document? | text? | image? | raw? | pdf? | html?, pdfOptions?, htmlOptions?, options? }`. Reentregue trabalhos sem resultado depois de ~2 min.
+`payload` é um JSON (string) assinado com Ed25519: `{ v: 2, id, deviceId, ts, expiresAt, enc: { alg, epk, iv, ct, tag } }`.
+- `enc` é o trabalho cifrado com X25519 efêmero + HKDF-SHA256 (salt = `epk`, info = `"easyprint-job-v2:" + id`) + AES-256-GCM (AAD = `id + ":" + deviceId`).
+- O conteúdo decifrado é `{ route?, printer?, copies?, jobName?, document? | text? | image? | raw? | pdf? | html?, pdfOptions?, htmlOptions?, options? }`.
+
+O relay deve recusar trabalhos sem `enc` e reentregar os que ficarem sem resultado depois de ~2 min. A implementação de referência está em `cloud/easyprint-cloud.js` (`signJob`, `encryptFor`).
