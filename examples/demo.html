@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Loja Demo — EasyPrint</title>
+<style>
+  :root { --bg: #f4f6f8; --card: #fff; --ink: #172026; --muted: #5d6973; --line: #e1e6ea; --brand: #2563eb; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #101418; --card: #182027; --ink: #e6ebef; --muted: #98a4ae; --line: #2a333b; --brand: #60a5fa; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, "Segoe UI", sans-serif; }
+  header { display: flex; align-items: center; gap: 16px; padding: 12px 24px; background: var(--card); border-bottom: 1px solid var(--line); }
+  header b { font-size: 1.1rem; } header .sp { flex: 1; }
+  main { max-width: 980px; margin: 0 auto; padding: 24px; display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px; display: grid; gap: 10px; align-content: start; }
+  .card h2 { margin: 0; font-size: 1.05rem; } .muted { color: var(--muted); font-size: .9rem; }
+  button { font: 600 .95rem system-ui; padding: 10px 16px; border-radius: 9px; border: 0; background: var(--brand); color: #fff; cursor: pointer; }
+  button.sec { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+  #log { grid-column: 1 / -1; font: 12.5px ui-monospace, Consolas, monospace; white-space: pre-wrap; max-height: 220px; overflow: auto; }
+  code { font-size: .85em; }
+</style>
+</head>
+<body>
+<header><b>🛒 Loja Demo · ERP</b><span class="muted">Sistema fictício usando o EasyPrint</span><span class="sp"></span><span id="status"></span></header>
+<main>
+  <section class="card">
+    <h2>🧾 Pedido (cupom térmico)</h2>
+    <p class="muted">Documento universal → vai para a finalidade <code>pedido</code>.</p>
+    <button id="b-pedido">Imprimir pedido #4821</button>
+  </section>
+  <section class="card">
+    <h2>🏷️ Etiqueta de envio (ZPL)</h2>
+    <p class="muted">ZPL como o Mercado Livre entrega → finalidade <code>etiqueta</code>.</p>
+    <button id="b-etiqueta">Imprimir etiqueta</button>
+  </section>
+  <section class="card">
+    <h2>📄 DANFE / PDF</h2>
+    <p class="muted">PDF baixado pelo navegador → finalidade <code>danfe</code>.</p>
+    <button id="b-pdf">Imprimir PDF de exemplo</button>
+  </section>
+  <section class="card">
+    <h2>🖨️ Impressoras</h2>
+    <p class="muted">O que o EasyPrint informa ao sistema.</p>
+    <button class="sec" id="b-list">Listar impressoras e finalidades</button>
+  </section>
+  <section class="card" id="log">Registro aparece aqui…</section>
+</main>
+<script src="/easyprint.js"></script>
+<script>
+  const log = (m) => { const el = document.getElementById('log'); el.textContent = `[${new Date().toLocaleTimeString('pt-BR')}] ${m}\n` + (el.textContent.startsWith('Registro') ? '' : el.textContent); };
+  const printer = EasyPrint.connect({
+    appName: 'Loja Demo ERP',
+    routes: { pedido: 'Pedidos (cozinha/balcão)', etiqueta: 'Etiquetas de envio', danfe: 'Notas fiscais (DANFE)' },
+  });
+  EasyPrint.widget(printer, '#status', { align: 'right' });
+  printer.on('status', (s, d) => log(`status: ${s} — ${d.title}`));
+
+  async function run(label, fn) {
+    try { const r = await fn(); log(`✔ ${label}: ${r.printer} (${r.routedBy === 'default-fallback' ? 'finalidade sem impressora → usou a padrão' : r.routedBy})${r.pages ? ' · ' + r.pages + ' pág.' : ''}`); }
+    catch (e) { log(`✖ ${label}: ${e.message}${e.hint ? ' — ' + e.hint : ''}`); }
+  }
+
+  document.getElementById('b-pedido').onclick = () => run('Pedido', () => printer.print(
+    EasyPrint.receipt()
+      .title('PEDIDO #4821').center('Loja Demo · Delivery').center(new Date().toLocaleString('pt-BR')).line()
+      .item(1, 'Pizza Calabresa G', 'R$ 62,90', 'borda de catupiry, sem cebola')
+      .item(2, 'Guaraná 2L', 'R$ 25,80').line()
+      .row('Subtotal', 'R$ 88,70').row('Entrega', 'R$ 6,00').total('TOTAL', 'R$ 94,70').line()
+      .text('Cliente: João Araújo').text('Rua das Acácias, 120 – Pinheiros').bold('Pagamento: Pix (pago)')
+      .qr('https://exemplo.com/p/4821').cut(),
+    { route: 'pedido', jobName: 'Pedido 4821' }));
+
+  const ZPL = '^XA^CI28^PW800^LL1200^FO40,40^A0N,60,60^FDMERCADO ENVIOS^FS^FO40,130^A0N,35,35^FDDestinatário: João Araújo^FS^FO40,180^A0N,30,30^FDRua das Acácias, 120 - São Paulo/SP^FS^FO40,260^BY3^BCN,180,Y,N,N^FD48210000123^FS^FO520,520^BQN,2,8^FDLA,https://exemplo.com/rastreio/4821^FS^XZ';
+  document.getElementById('b-etiqueta').onclick = () => run('Etiqueta', () => printer.printRaw(ZPL, { route: 'etiqueta', jobName: 'Etiqueta 4821' }));
+  document.getElementById('b-pdf').onclick = () => run('PDF', () => printer.printPdf('/exemplo.pdf', { route: 'danfe', jobName: 'DANFE 4821' }));
+  document.getElementById('b-list').onclick = async () => {
+    try {
+      const [ps, rs] = await Promise.all([printer.printers(), printer.routes()]);
+      log('impressoras: ' + ps.map((p) => `${p.name} [${p.kind}]${p.isDefault ? ' ★' : ''}`).join(', '));
+      log('finalidades: ' + rs.map((r) => `${r.route} → ${r.printer || 'padrão'}`).join(', '));
+    } catch (e) { log(`✖ ${e.message}${e.hint ? ' — ' + e.hint : ''}`); }
+  };
+</script>
+</body>
+</html>

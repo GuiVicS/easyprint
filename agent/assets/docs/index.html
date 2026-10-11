@@ -1,0 +1,764 @@
+<title>EasyPrint Docs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Figtree:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: documentação com trilho de sumário fixo à esquerda (telas largas), coluna de leitura de ~70ch e cupons térmicos como figuras. */
+:root {
+  --paper: #f7f9f8;
+  --surface: #ffffff;
+  --ink: #141a17;
+  --muted: #59635d;
+  --rule: #dce3df;
+  --accent: #12803f;
+  --accent-ink: #ffffff;
+  --accent-soft: #e2f2e8;
+  --warn-soft: #fdf3dc;
+  --warn-ink: #7a4f00;
+  --code-bg: #111613;
+  --code-fg: #dbe5df;
+  --code-dim: #8fa198;
+  --receipt: #ffffff;
+  --receipt-ink: #1b1d1c;
+  --receipt-shadow: rgba(20, 30, 25, .16);
+  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Figtree", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Code", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0e1210; --surface: #151b18; --ink: #e5ebe7; --muted: #97a39c; --rule: #25302a;
+    --accent: #3fcf7c; --accent-ink: #062113; --accent-soft: #143222; --warn-soft: #33280f; --warn-ink: #f5c86a;
+    --code-bg: #0a0d0b; --code-fg: #d6e2db; --code-dim: #7d8e85;
+    --receipt: #f4f2ec; --receipt-ink: #1b1d1c; --receipt-shadow: rgba(0, 0, 0, .5);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0e1210; --surface: #151b18; --ink: #e5ebe7; --muted: #97a39c; --rule: #25302a;
+  --accent: #3fcf7c; --accent-ink: #062113; --accent-soft: #143222; --warn-soft: #33280f; --warn-ink: #f5c86a;
+  --code-bg: #0a0d0b; --code-fg: #d6e2db; --code-dim: #7d8e85;
+  --receipt: #f4f2ec; --receipt-ink: #1b1d1c; --receipt-shadow: rgba(0, 0, 0, .5);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body { background: var(--paper); color: var(--ink); font: 16px/1.65 var(--font-body); margin: 0; }
+a { color: var(--accent); text-underline-offset: 3px; }
+h1, h2, h3 { font-family: var(--font-display); line-height: 1.15; text-wrap: balance; margin: 0; }
+h2 { font-size: clamp(1.6rem, 3vw, 2.1rem); font-weight: 800; letter-spacing: -.015em; }
+h3 { font-size: 1.15rem; font-weight: 600; margin-top: 1.8em; }
+p, li { max-width: 68ch; }
+code { font-family: var(--font-mono); font-size: .88em; background: var(--accent-soft); padding: .1em .35em; border-radius: 4px; }
+.eyebrow { font: 600 .75rem/1 var(--font-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+.muted { color: var(--muted); }
+
+.shell { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 48px; max-width: 1180px; margin: 0 auto; padding-inline: 24px; }
+.toc { position: sticky; top: env(safe-area-inset-top, 0px); align-self: start; padding-block: 32px; max-height: 100vh; overflow-y: auto; }
+.toc .brand { display: flex; align-items: center; gap: 10px; font: 800 1.25rem var(--font-display); color: var(--ink); text-decoration: none; margin-bottom: 24px; }
+.toc nav { display: grid; gap: 2px; }
+.toc nav a { color: var(--muted); text-decoration: none; padding: 5px 10px; border-radius: 6px; font-size: .94rem; }
+.toc nav a:hover, .toc nav a.on { color: var(--ink); background: var(--accent-soft); }
+.toc .group { font: 600 .7rem var(--font-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin: 16px 10px 4px; }
+main { padding-block: 40px 96px; min-width: 0; }
+section { padding-block: 56px 8px; border-top: 1px solid var(--rule); scroll-margin-top: 16px; }
+section > * + * { margin-top: 16px; }
+section > h3 + * { margin-top: 10px; }
+
+/* Hero */
+.hero { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 40px; align-items: center; padding-block: 8px 48px; border: 0; }
+.hero h1 { font-size: clamp(2.6rem, 6vw, 4.2rem); font-weight: 800; letter-spacing: -.03em; }
+.hero h1 span { color: var(--accent); }
+.hero .lede { font-size: 1.2rem; color: var(--muted); max-width: 46ch; }
+.paths { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 28px; }
+.path { display: grid; gap: 4px; padding: 16px; border: 1px solid var(--rule); border-radius: 10px; background: var(--surface); color: var(--ink); text-decoration: none; transition: border-color .15s, transform .15s; }
+.path:hover { border-color: var(--accent); transform: translateY(-2px); }
+.path b { font-family: var(--font-display); font-weight: 600; font-size: 1.05rem; }
+.path span { color: var(--muted); font-size: .9rem; line-height: 1.45; }
+
+/* Cupom térmico */
+.receipt {
+  background: var(--receipt); color: var(--receipt-ink); font: 12.5px/1.38 var(--font-mono);
+  padding: 18px 14px 26px; white-space: pre; box-shadow: 0 10px 30px var(--receipt-shadow);
+  -webkit-mask: linear-gradient(#000 calc(100% - 9px), transparent 0), conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom/14px 9px repeat-x;
+  mask: linear-gradient(#000 calc(100% - 9px), transparent 0), conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom/14px 9px repeat-x;
+  overflow: hidden; max-width: 100%;
+}
+.receipt .l { min-height: 1.38em; }
+.receipt .b { font-weight: 600; }
+.receipt .s2 { font-size: 2em; line-height: 1.15; }
+.receipt .qr { width: 92px; height: 92px; margin: 8px auto; background:
+  conic-gradient(var(--receipt-ink) 25%, transparent 0 50%, var(--receipt-ink) 0 75%, transparent 0) 0 0/18px 18px;
+  outline: 6px solid var(--receipt-ink); outline-offset: -6px; }
+.receipt .cut { border-top: 1.5px dashed #999; margin: 12px -14px 0; }
+.hero .receipt { transform: rotate(1.5deg); }
+
+/* Código */
+.code { position: relative; background: var(--code-bg); color: var(--code-fg); border-radius: 10px; font: 13.5px/1.6 var(--font-mono); overflow: hidden; }
+.code pre { margin: 0; padding: 18px 20px; overflow-x: auto; }
+.code .c { color: var(--code-dim); }
+.code .copy { position: absolute; top: 8px; right: 8px; }
+.btn { font: 600 .9rem var(--font-body); border-radius: 8px; padding: 8px 14px; border: 1px solid var(--rule); background: var(--surface); color: var(--ink); cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
+.btn:hover { border-color: var(--accent); }
+.btn:focus-visible, .tab:focus-visible, a:focus-visible, textarea:focus-visible, select:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 45%, transparent); outline-offset: 2px; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.code .btn { background: #222b26; border-color: #33403a; color: var(--code-fg); padding: 4px 10px; font-size: .8rem; }
+
+/* Passos */
+.steps { counter-reset: s; list-style: none; padding: 0; display: grid; gap: 14px; }
+.steps > li { counter-increment: s; display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 14px; max-width: none; }
+.steps > li::before { content: counter(s); width: 32px; height: 32px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font: 700 .95rem var(--font-mono); display: grid; place-items: center; }
+.steps > li > div > b { display: block; font-size: 1.02rem; }
+
+.note { border-left: 3px solid var(--accent); background: var(--accent-soft); padding: 12px 16px; border-radius: 0 8px 8px 0; max-width: 72ch; }
+.note.warn { border-color: var(--warn-ink); background: var(--warn-soft); }
+.note b { display: block; }
+
+/* Tabelas */
+.table-wrap { overflow-x: auto; border: 1px solid var(--rule); border-radius: 10px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: .93rem; }
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { font: 600 .74rem var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); background: var(--paper); }
+tr:last-child td { border-bottom: 0; }
+td code { white-space: nowrap; }
+.yes { color: var(--accent); font-weight: 600; }
+
+/* Playground */
+.play { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); gap: 20px; align-items: start; }
+.play textarea { width: 100%; min-height: 430px; resize: vertical; background: var(--code-bg); color: var(--code-fg); border: 0; border-radius: 10px; padding: 16px; font: 13px/1.55 var(--font-mono); tab-size: 2; }
+.play .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 10px; }
+.play select { font: inherit; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--rule); background: var(--surface); color: var(--ink); }
+.play .out { display: grid; justify-items: center; gap: 10px; }
+.play .err { color: var(--warn-ink); background: var(--warn-soft); padding: 10px 14px; border-radius: 8px; font-size: .9rem; width: 100%; }
+.legend { font: .78rem var(--font-mono); color: var(--muted); }
+
+/* Abas */
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.tab { font: 600 .88rem var(--font-body); padding: 7px 14px; border-radius: 999px; border: 1px solid var(--rule); background: var(--surface); color: var(--muted); cursor: pointer; }
+.tab[aria-selected="true"] { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+
+.dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.dl > div { border: 1px solid var(--rule); border-radius: 12px; padding: 20px; background: var(--surface); display: grid; gap: 8px; align-content: start; }
+.dl b { font: 600 1.1rem var(--font-display); }
+.dl .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+
+details { border: 1px solid var(--rule); border-radius: 10px; background: var(--surface); padding: 0 18px; max-width: 76ch; }
+details + details { margin-top: 8px; }
+summary { cursor: pointer; padding: 14px 0; font-weight: 600; }
+details[open] summary { border-bottom: 1px solid var(--rule); margin-bottom: 10px; }
+details > :last-child { padding-bottom: 14px; }
+
+.flow { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.flow .node { display: grid; gap: 2px; padding: 12px 14px; border: 1px solid var(--rule); border-radius: 10px; background: var(--surface); min-width: 0; }
+.flow .node.accent { border-color: var(--accent); background: var(--accent-soft); }
+.flow .node span { color: var(--muted); font-size: .85rem; }
+.flow .arrow { font: 600 .8rem var(--font-mono); color: var(--muted); }
+@media (max-width: 900px) {
+  .shell { grid-template-columns: minmax(0, 1fr); gap: 0; padding-inline: 16px; }
+  .toc { position: static; max-height: none; padding-block: 20px 0; }
+  .toc nav { display: flex; flex-wrap: wrap; gap: 4px; }
+  .toc .group { display: none; }
+  .hero, .play, .dl { grid-template-columns: minmax(0, 1fr); }
+  .hero .receipt { justify-self: center; transform: none; }
+  .paths { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="shell">
+  <aside class="toc">
+    <a class="brand" href="#inicio">
+      <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="15" fill="var(--accent)"/><rect x="9" y="7" width="14" height="6" fill="var(--paper)"/><rect x="6" y="13" width="20" height="9" rx="2" fill="var(--paper)"/><rect x="9" y="22" width="14" height="4" fill="var(--paper)"/></svg>
+      EasyPrint
+    </a>
+    <nav id="toc">
+      <div class="group">Usar</div>
+      <a href="#lojista">Para a loja</a>
+      <div class="group">Desenvolver</div>
+      <a href="#rapido">Primeira impressão</a>
+      <a href="#playground">Playground</a>
+      <a href="#documento">Documento universal</a>
+      <a href="#arquivos">PDF, HTML e ZPL</a>
+      <a href="#finalidades">Finalidades</a>
+      <a href="#nuvem">Impressão pela nuvem</a>
+      <a href="#api">API do SDK</a>
+      <a href="#erros">Status e erros</a>
+      <a href="#frameworks">Frameworks</a>
+      <a href="#ia">Integração com IA</a>
+      <div class="group">Entender</div>
+      <a href="#seguranca">Segurança</a>
+      <a href="#comparativo">EasyPrint × QZ Tray</a>
+      <a href="#faq">Perguntas frequentes</a>
+      <div class="group">Projeto</div>
+      <a href="https://github.com/GuiVicS/easyprint" target="_blank" rel="noopener">GitHub ↗</a>
+    </nav>
+  </aside>
+
+  <main>
+    <section class="hero" id="inicio">
+      <div>
+        <div class="eyebrow">Documentação · v1.0</div>
+        <h1 style="margin-top:14px">Do site para a<br><span>impressora</span>, sem diálogo.</h1>
+        <p class="lede" style="margin-top:16px">O EasyPrint é um programa leve que roda no computador da loja e deixa sites, ERPs e lojas virtuais imprimirem cupons, etiquetas, PDFs e HTML direto na impressora, com acentos certos e em português. Funciona no Windows e no Linux, e é open source.</p>
+        <div class="paths">
+          <a class="path" href="#lojista"><b>Tenho uma loja</b><span>Instale e configure a impressora em 2 minutos.</span></a>
+          <a class="path" href="#rapido"><b>Sou dev</b><span>Primeira impressão com 10 linhas de código.</span></a>
+          <a class="path" href="#ia"><b>Programo com IA</b><span>Baixe a skill e deixe a IA integrar.</span></a>
+        </div>
+      </div>
+      <div id="hero-receipt" aria-label="Exemplo de cupom impresso"></div>
+    </section>
+
+    <section id="lojista">
+      <div class="eyebrow">Para a loja</div>
+      <h2>Instalar e configurar</h2>
+      <p>Você não precisa entender de tecnologia. O assistente faz as perguntas certas e testa a impressão com você.</p>
+      <ol class="steps">
+        <li><div><b>Baixe e abra o <code>EasyPrint.exe</code></b>Ele se instala sozinho na sua pasta de usuário. Não pede senha de administrador e não mexe no firewall.</div></li>
+        <li><div><b>Escolha a impressora</b>O EasyPrint lista as impressoras do computador e reconhece as térmicas mais comuns (Epson TM, Elgin i9, Bematech, Daruma, Zebra…). Ainda sem impressora? Use o <b style="display:inline">Simulador</b>, que mostra o cupom na tela.</div></li>
+        <li><div><b>Confirme o tipo e o papel</b>Cupom (58 ou 80 mm), etiqueta ou folha A4. A opção detectada já vem marcada.</div></li>
+        <li><div><b>Imprima o teste</b>Os acentos saíram estranhos? Clique em "Os acentos saíram estranhos" e o EasyPrint testa outra tabela de caracteres. O texto saiu cortado? Ele troca a largura do papel.</div></li>
+      </ol>
+      <h3>No Linux</h3>
+      <p>Baixe o <code>easyprint-linux-x64</code> e rode. Ele se instala em <code>~/.local/bin</code> e cria o atalho no menu de aplicativos:</p>
+      <div class="code"><button class="btn copy" data-copy="linux-install">Copiar</button><pre id="linux-install">curl -fsSL https://github.com/GuiVicS/easyprint/raw/main/install.sh | sh</pre></div>
+      <p class="muted">Impressoras do CUPS aparecem automaticamente. Térmicas USB sem fila no CUPS aparecem como "USB direto (lp0)". Para PDF em térmica ou etiqueta, instale o <code>poppler-utils</code>. Para HTML, o Chrome ou o Chromium.</p>
+      <h3>As duas perguntas que vão aparecer</h3>
+      <p>Na primeira vez que o sistema da loja tentar imprimir, duas janelas pedem sua confirmação. Responda <b>Permitir</b> nas duas.</p>
+      <div class="table-wrap"><table>
+        <tr><th>Quem pergunta</th><th>O que aparece</th><th>Por quê</th></tr>
+        <tr><td>EasyPrint</td><td>"Um site quer usar suas impressoras"</td><td>Você decide quais sites podem imprimir. Só acontece uma vez por site.</td></tr>
+        <tr><td>Chrome / Edge</td><td>"Acessar outros apps e serviços neste dispositivo"</td><td>Proteção do navegador para sites que conversam com programas do computador (Local Network Access, 2026).</td></tr>
+      </table></div>
+      <div class="note warn"><b>Clicou em Bloquear no navegador sem querer?</b>Clique no ícone à esquerda do endereço do site, procure "Acesso à rede local" e escolha Permitir. Depois recarregue a página.</div>
+    </section>
+
+    <section id="rapido">
+      <div class="eyebrow">Para desenvolvedores</div>
+      <h2>Primeira impressão em 5 minutos</h2>
+      <ol class="steps">
+        <li><div><b>Rode o EasyPrint e complete o assistente</b>Escolha o <i>Simulador</i> se não tiver impressora. O resultado aparece em Painel → Histórico.</div></li>
+        <li><div><b>Adicione o SDK</b>Um arquivo, sem dependências: <code>easyprint.js</code> (com <code>easyprint.d.ts</code> para TypeScript). Copie para o projeto.</div></li>
+        <li><div><b>Conecte uma vez e imprima</b>Monte o cupom com blocos. O EasyPrint converte para a linguagem da impressora.</div></li>
+      </ol>
+      <div class="code"><button class="btn copy" data-copy="quick">Copiar</button><pre id="quick"><span class="c">&lt;!-- 1. carregue o SDK (copie o arquivo para o seu projeto) --&gt;</span>
+&lt;script src="/vendor/easyprint.js"&gt;&lt;/script&gt;
+&lt;span id="status"&gt;&lt;/span&gt;
+&lt;button onclick="imprimir()"&gt;Imprimir pedido&lt;/button&gt;
+
+&lt;script&gt;
+  <span class="c">// 2. conecte UMA vez</span>
+  const printer = EasyPrint.connect({ appName: 'Minha Loja' });
+  EasyPrint.widget(printer, '#status');   <span class="c">// selo "Impressora pronta" + ajuda</span>
+
+  <span class="c">// 3. imprima</span>
+  async function imprimir() {
+    try {
+      await printer.print(
+        EasyPrint.receipt()
+          .title('PEDIDO #123')
+          .line()
+          .item(2, 'X-Burguer', 'R$ 59,80', 'sem cebola')
+          .total('TOTAL', 'R$ 59,80')
+          .qr('https://minhaloja.com/p/123')
+          .cut()
+      );
+    } catch (err) {
+      alert(err.message + '\n' + (err.hint || ''));  <span class="c">// toda falha explica como resolver</span>
+    }
+  }
+&lt;/script&gt;</pre></div>
+      <p class="muted">Você não informa a impressora, o papel nem a codificação. Isso foi decidido pelo lojista no assistente. Seu código fica igual para uma térmica de 58 mm, uma de 80 mm ou uma impressora A4.</p>
+    </section>
+
+    <section id="playground">
+      <div class="eyebrow">Experimente</div>
+      <h2>Playground do documento</h2>
+      <p>Edite o JSON e veja o cupom se ajustar à largura do papel. A quebra de linha e as colunas usam o mesmo algoritmo do agente.</p>
+      <div class="play">
+        <div>
+          <div class="controls">
+            <label for="pg-width">Papel</label>
+            <select id="pg-width"><option value="48">80 mm (48 colunas)</option><option value="32">58 mm (32 colunas)</option></select>
+            <button class="btn" id="pg-reset" type="button">Restaurar exemplo</button>
+          </div>
+          <textarea id="pg-src" spellcheck="false" aria-label="Documento em JSON"></textarea>
+        </div>
+        <div class="out">
+          <div id="pg-out"></div>
+          <div class="legend" id="pg-legend"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="documento">
+      <div class="eyebrow">Referência</div>
+      <h2>Documento universal</h2>
+      <p>Um documento é uma lista de <b>blocos</b>. Cada bloco descreve <i>o que</i> imprimir e o EasyPrint decide <i>como</i>: ESC/POS na térmica, ZPL na etiqueta ou desenho na impressora comum.</p>
+      <div class="table-wrap"><table>
+        <tr><th>Bloco</th><th>Builder</th><th>Para que serve</th></tr>
+        <tr><td><code>text</code></td><td><code>.text(v, {align, bold, size})</code></td><td>Texto comum. <code>size</code> de 1 a 3, <code>align</code> left/center/right. Também <code>.center()</code> e <code>.bold()</code>.</td></tr>
+        <tr><td><code>title</code></td><td><code>.title('PEDIDO #1')</code></td><td>Texto grande, centralizado e em negrito.</td></tr>
+        <tr><td><code>line</code></td><td><code>.line('=')</code></td><td>Separador na largura exata do papel.</td></tr>
+        <tr><td><code>row</code></td><td><code>.row('Entrega', 'R$ 5,00')</code></td><td>Rótulo à esquerda e valor à direita.</td></tr>
+        <tr><td><code>item</code></td><td><code>.item(2, 'Pizza', 'R$ 90,00', 'borda recheada')</code></td><td>Linha de pedido com a observação recuada.</td></tr>
+        <tr><td><code>total</code></td><td><code>.total('TOTAL', 'R$ 95,00')</code></td><td>Total em fonte dupla.</td></tr>
+        <tr><td><code>qr</code></td><td><code>.qr(url, 6)</code></td><td>QR Code nativo da impressora.</td></tr>
+        <tr><td><code>barcode</code></td><td><code>.barcode('7891234567895', 'EAN13')</code></td><td>Código de barras CODE128 ou EAN13.</td></tr>
+        <tr><td><code>image</code></td><td><code>.image(await EasyPrint.image('/logo.png'))</code></td><td>Logo ou imagem, convertida para preto e branco com pontilhado.</td></tr>
+        <tr><td><code>feed</code> · <code>cut</code> · <code>drawer</code></td><td><code>.feed(3).cut().drawer()</code></td><td>Avançar papel, cortar e abrir a gaveta de dinheiro.</td></tr>
+      </table></div>
+      <h3>Precisa de controle total?</h3>
+      <p>Use <code>printer.printRaw(bytes)</code> para mandar comandos ESC/POS, ZPL ou EPL exatamente como estão. Aceita <code>Uint8Array</code>, string binária, <code>{ hex }</code> ou um array misto.</p>
+    </section>
+
+    <section id="arquivos">
+      <div class="eyebrow">ERP e e-commerce</div>
+      <h2>PDF, HTML e ZPL prontos</h2>
+      <p>Seu sistema já gera a DANFE em PDF, a comanda em HTML ou recebe a etiqueta do marketplace em ZPL? Mande do jeito que está. O EasyPrint adapta para cada impressora.</p>
+      <div class="table-wrap"><table>
+        <tr><th>Você tem</th><th>Chamada</th><th>O que acontece</th></tr>
+        <tr><td>PDF (DANFE, boleto, etiqueta Correios/Shopee)</td><td><code>printer.printPdf(url, { route: 'danfe' })</code></td><td>Renderizado pelo próprio Windows (ou <code>pdftoppm</code> no Linux). Na Zebra, cada página vira uma etiqueta. Na térmica, um cupom.</td></tr>
+        <tr><td>HTML (comanda, layout pronto)</td><td><code>printer.printHtml(elemento)</code></td><td>Renderizado num navegador isolado, com JavaScript desligado. Na térmica, ocupa a largura do papel e o espaço em branco do fim é cortado.</td></tr>
+        <tr><td>ZPL do Mercado Livre</td><td><code>printer.printRaw(zpl, { route: 'etiqueta' })</code></td><td>Vai direto para a impressora, sem conversão.</td></tr>
+      </table></div>
+      <div class="code"><button class="btn copy" data-copy="pdf-ex">Copiar</button><pre id="pdf-ex"><span class="c">// a URL é baixada pelo navegador com os cookies do seu site (endpoints autenticados funcionam)</span>
+await printer.printPdf('/api/notas/4821/danfe.pdf', { route: 'danfe', pages: '1' });
+
+<span class="c">// comanda montada na própria tela, com os estilos da página</span>
+await printer.printHtml(document.querySelector('#comanda'), { route: 'pedido' });</pre></div>
+      <p class="muted">Códigos de barras e QR são convertidos sem pontilhado, para continuarem legíveis no leitor. Os limites são 25 MB de PDF e 5 MB de HTML.</p>
+    </section>
+
+    <section id="finalidades">
+      <div class="eyebrow">ERP e e-commerce</div>
+      <h2>Finalidades: cada coisa na sua impressora</h2>
+      <p>Seu sistema diz <i>o que</i> quer imprimir, e o lojista escolhe <i>onde</i>. Etiqueta na Zebra, DANFE na laser, pedido na térmica da cozinha. O código não precisa saber o nome de nenhuma impressora.</p>
+      <div class="code"><button class="btn copy" data-copy="routes-ex">Copiar</button><pre id="routes-ex">const printer = EasyPrint.connect({
+  appName: 'Meu ERP',
+  routes: { pedido: 'Pedidos (cozinha)', etiqueta: 'Etiquetas de envio', danfe: 'Notas fiscais' },
+});
+
+await printer.printRaw(zpl, { route: 'etiqueta' });   <span class="c">// sai na impressora escolhida para "etiqueta"</span></pre></div>
+      <p>As finalidades aparecem sozinhas no painel do EasyPrint (Impressoras → Finalidades), com um seletor de impressora para cada uma. Enquanto o lojista não escolhe, a impressão sai na padrão e o resultado avisa com <code>routedBy: 'default-fallback'</code>.</p>
+    </section>
+
+    <section id="nuvem">
+      <div class="eyebrow">ERP e e-commerce</div>
+      <h2>Impressão pela nuvem</h2>
+      <p>Para imprimir sem nenhuma tela aberta. Por exemplo: chegou um pedido às 3h e a etiqueta já sai na expedição. O seu back-end assina o trabalho, o relay guarda na fila e o EasyPrint da loja busca e imprime.</p>
+      <div class="flow" role="img" aria-label="O back-end do ERP envia trabalhos assinados ao relay; o EasyPrint da loja busca no relay, verifica a assinatura e imprime">
+        <div class="node"><b>Back-end do ERP</b><span>assina com Ed25519</span></div>
+        <div class="arrow">HTTPS →</div>
+        <div class="node"><b>Relay</b><span>fila de trabalhos</span></div>
+        <div class="arrow">← busca (só saída)</div>
+        <div class="node accent"><b>EasyPrint na loja</b><span>verifica a assinatura</span></div>
+        <div class="arrow">→</div>
+        <div class="node"><b>Impressora</b><span>térmica, etiqueta, A4</span></div>
+      </div>
+      <div class="code"><button class="btn copy" data-copy="cloud-ex">Copiar</button><pre id="cloud-ex">const { EasyPrintCloud } = require('./easyprint-cloud');   <span class="c">// SDK de servidor, sem dependências</span>
+const cloud = new EasyPrintCloud({ relayUrl, apiKey, privateKey, publicKey });
+
+<span class="c">// 1x por loja: o lojista cola o código em EasyPrint → Nuvem</span>
+const { deviceId, connectionCode } = await cloud.createDevice('Loja Centro');
+
+<span class="c">// a qualquer momento, do servidor</span>
+await cloud.print(deviceId, { route: 'etiqueta', raw: { text: zpl } });
+await cloud.print(deviceId, { route: 'danfe', pdf: pdfBuffer });</pre></div>
+      <h3>Por que é seguro</h3>
+      <ul>
+        <li><b>Assinatura Ed25519 em cada trabalho.</b> A loja só aceita trabalhos assinados pela chave do seu sistema. Nem quem controla o relay consegue forjar uma impressão.</li>
+        <li><b>Amarrado ao computador.</b> Um trabalho emitido para a Loja A é recusado na Loja B.</li>
+        <li><b>Validade e anti-replay.</b> Trabalhos vencidos são recusados, e cada trabalho imprime uma única vez, mesmo após reiniciar.</li>
+        <li><b>Gaveta bloqueada por padrão.</b> O lojista libera "Abrir gaveta", "PDF/HTML" e "RAW" por conexão.</li>
+        <li><b>Sem portas abertas.</b> Só conexões de saída por HTTPS. O token fica protegido com DPAPI no Windows e em arquivo 0600 no Linux.</li>
+      </ul>
+      <p class="muted">Use o relay de referência (<code>cloud/relay-server.js</code>) ou implemente o protocolo no seu back-end. A especificação está em <a href="https://github.com/GuiVicS/easyprint/blob/main/skill/easyprint/reference/erp.md" target="_blank" rel="noopener">reference/erp.md</a>.</p>
+    </section>
+
+    <section id="api">
+      <div class="eyebrow">Referência</div>
+      <h2>API do SDK</h2>
+      <div class="table-wrap"><table>
+        <tr><th>Chamada</th><th>O que faz</th></tr>
+        <tr><td><code>EasyPrint.connect(opts)</code></td><td>Conecta e devolve o cliente. Chamar de novo devolve o mesmo cliente. Opções: <code>appName</code>, <code>routes</code>, <code>downloadUrl</code>, <code>token</code>, <code>ports</code>, <code>autoReconnect</code>, <code>debug</code>.</td></tr>
+        <tr><td><code>printer.print(doc, opts)</code></td><td>Imprime um builder, <code>{blocks}</code>, um array ou uma string. <code>opts</code>: <code>route</code>, <code>printer</code>, <code>copies</code>, <code>jobName</code>.</td></tr>
+        <tr><td><code>printer.printPdf(src, opts)</code></td><td>PDF por URL, Blob ou bytes. <code>opts</code>: <code>pages</code>, <code>fit</code>, <code>paperSize</code>, <code>route</code>.</td></tr>
+        <tr><td><code>printer.printHtml(html, opts)</code></td><td>HTML (string ou elemento da página). JavaScript desligado por padrão.</td></tr>
+        <tr><td><code>printer.printText</code> · <code>printImage</code> · <code>printRaw</code></td><td>Atalhos para texto, imagem e bytes crus.</td></tr>
+        <tr><td><code>printer.routes()</code></td><td>Finalidades e as impressoras escolhidas pelo lojista.</td></tr>
+        <tr><td><code>printer.printers()</code></td><td>Lista de impressoras com tipo, papel e colunas.</td></tr>
+        <tr><td><code>printer.on('status', fn)</code></td><td>Avisa quando o status muda. Devolve a função para cancelar.</td></tr>
+        <tr><td><code>printer.ready()</code></td><td>Promise que resolve quando dá para imprimir.</td></tr>
+        <tr><td><code>printer.diagnose()</code></td><td><code>{ ok, status, title, message, steps[] }</code> em pt-BR, pronto para exibir.</td></tr>
+        <tr><td><code>EasyPrint.widget(printer, el)</code></td><td>Selo de status com instruções de correção. Isolado em Shadow DOM.</td></tr>
+        <tr><td><code>EasyPrint.image(src)</code></td><td>Converte uma URL, <code>&lt;img&gt;</code> ou <code>&lt;canvas&gt;</code> em PNG para impressão.</td></tr>
+      </table></div>
+      <p class="muted">Os tipos completos estão em <code>easyprint.d.ts</code>. Funciona com <code>&lt;script&gt;</code>, <code>import</code> (Vite, Webpack, Next) e <code>require</code> (Node 22+).</p>
+    </section>
+
+    <section id="erros">
+      <div class="eyebrow">Referência</div>
+      <h2>Status e erros</h2>
+      <p>Toda falha vem com <code>code</code> (para o seu código decidir), <code>message</code> (o que houve) e <code>hint</code> (como resolver, escrito para o lojista).</p>
+      <div class="table-wrap"><table>
+        <tr><th>Status</th><th>Significa</th><th>Mostre</th></tr>
+        <tr><td><code>ready</code></td><td>Tudo certo.</td><td>Indicador verde.</td></tr>
+        <tr><td><code>not_running</code></td><td>EasyPrint fechado ou não instalado.</td><td>Passos e link de download. O SDK tenta reconectar sozinho.</td></tr>
+        <tr><td><code>awaiting_approval</code></td><td>Esperando o lojista clicar em Permitir.</td><td>"Confirme no EasyPrint".</td></tr>
+        <tr><td><code>browser_blocked</code></td><td>O Chrome/Edge bloqueou o acesso local.</td><td>Cadeado → Acesso à rede local → Permitir.</td></tr>
+        <tr><td><code>denied</code></td><td>O site foi bloqueado no EasyPrint.</td><td>Como desbloquear em "Sites e apps".</td></tr>
+        <tr><td><code>unsupported_browser</code></td><td>Safari com HTTPS.</td><td>Sugerir Chrome, Edge ou Firefox.</td></tr>
+      </table></div>
+      <div class="table-wrap"><table>
+        <tr><th>Erro</th><th>Quando</th></tr>
+        <tr><td><code>PRINTER_NOT_FOUND</code></td><td>A impressora pedida não existe. A <code>hint</code> lista as disponíveis.</td></tr>
+        <tr><td><code>NO_DEFAULT_PRINTER</code></td><td>O assistente ainda não foi concluído.</td></tr>
+        <tr><td><code>PRINT_FAILED</code> · <code>TIMEOUT</code></td><td>A impressora recusou ou não respondeu (papel, tampa, cabo, fila do Windows).</td></tr>
+        <tr><td><code>INVALID_DOCUMENT</code></td><td>Bloco com tipo ou campo errado. É bug no código, corrija o documento.</td></tr>
+        <tr><td><code>NOT_RUNNING</code> · <code>NOT_AUTHORIZED</code> · <code>DENIED</code></td><td>Equivalem aos status acima.</td></tr>
+      </table></div>
+    </section>
+
+    <section id="frameworks">
+      <div class="eyebrow">Receitas</div>
+      <h2>Frameworks</h2>
+      <p>O padrão é sempre o mesmo: um módulo que conecta uma vez, um componente que mostra o status e um <code>try/catch</code> que exibe a dica.</p>
+      <div class="tabs" role="tablist" id="fw-tabs"></div>
+      <div class="code"><button class="btn copy" data-copy="fw-code">Copiar</button><pre id="fw-code"></pre></div>
+    </section>
+
+    <section id="ia">
+      <div class="eyebrow">Integração com IA</div>
+      <h2>Deixe a IA integrar por você</h2>
+      <p>Preparamos as instruções no formato que as IAs de programação entendem melhor: o que fazer, em que ordem, os modelos de código por framework e o que <i>não</i> fazer. A IA detecta o seu framework, adiciona o SDK, cria o serviço de impressão, o indicador de status e o tratamento de erros.</p>
+      <div class="dl">
+        <div>
+          <span class="eyebrow">Skill · .zip</span>
+          <b>Skill EasyPrint</b>
+          <span class="muted">Para Claude Code e outras ferramentas com suporte a skills. Inclui <code>SKILL.md</code>, as referências e o SDK.</span>
+          <div class="row" id="dl-skill"></div>
+        </div>
+        <div>
+          <span class="eyebrow">Arquivo único · .md</span>
+          <b>EASYPRINT_AI.md</b>
+          <span class="muted">Para qualquer IA (ChatGPT, Gemini, Cursor, Copilot, Lovable, Bolt). Traz tudo num arquivo só, inclusive o código do SDK.</span>
+          <div class="row" id="dl-md"></div>
+        </div>
+      </div>
+      <h3>Como usar em cada ferramenta</h3>
+      <div class="table-wrap"><table>
+        <tr><th>Ferramenta</th><th>Onde colocar</th></tr>
+        <tr><td>Claude Code</td><td>Extraia o .zip em <code>~/.claude/skills/</code> (vale para todos os projetos) ou em <code>.claude/skills/</code> do projeto. Depois peça: "integre impressão com EasyPrint".</td></tr>
+        <tr><td>Cursor / Windsurf</td><td>Coloque <code>EASYPRINT_AI.md</code> na raiz e cite <code>@EASYPRINT_AI.md</code> no chat.</td></tr>
+        <tr><td>GitHub Copilot</td><td>Salve como <code>.github/instructions/easyprint.instructions.md</code> ou anexe com <code>#file</code>.</td></tr>
+        <tr><td>ChatGPT · Gemini · Claude.ai</td><td>Anexe <code>EASYPRINT_AI.md</code> e cole o pedido abaixo.</td></tr>
+        <tr><td>Lovable · Bolt · v0</td><td>Adicione o arquivo ao projeto (ou cole o conteúdo) e envie o pedido.</td></tr>
+      </table></div>
+      <h3>Pedido para colar</h3>
+      <div class="code"><button class="btn copy" data-copy="ai-prompt">Copiar</button><pre id="ai-prompt">Integre impressão direta com o EasyPrint neste projeto seguindo o EASYPRINT_AI.md.
+Imprima o pedido/recibo (número, itens com observação, totais, cliente,
+endereço e pagamento), mostre o status da impressora na barra superior e
+exiba a dica de correção quando a impressão falhar. Use o nome "NOME DO SISTEMA".</pre></div>
+    </section>
+
+    <section id="seguranca">
+      <div class="eyebrow">Por dentro</div>
+      <h2>Segurança</h2>
+      <p>O EasyPrint troca a cadeia de certificados de soluções antigas por regras simples de entender.</p>
+      <ul>
+        <li><b>Só local.</b> Escuta apenas em <code>127.0.0.1</code>. Nenhuma porta fica aberta para a rede.</li>
+        <li><b>Permissão por site.</b> O navegador informa o endereço do site (<code>Origin</code>) e a página não consegue falsificá-lo. Cada site novo precisa da aprovação do lojista.</li>
+        <li><b>Sem certificado raiz.</b> Navegadores já tratam <code>ws://127.0.0.1</code> como seguro, então não instalamos uma autoridade certificadora no Windows.</li>
+        <li><b>Painel protegido.</b> Token secreto a cada execução, checagem de <code>Host</code> contra DNS rebinding e de <code>Origin</code> contra CSRF.</li>
+        <li><b>Apps sem navegador</b> usam tokens revogáveis, guardados apenas como hash SHA-256.</li>
+      </ul>
+    </section>
+
+    <section id="comparativo">
+      <div class="eyebrow">Contexto</div>
+      <h2>EasyPrint × QZ Tray</h2>
+      <p>O QZ Tray é a referência do mercado e foi estudado para desenhar o EasyPrint. O QZ ainda tem acesso a serial, USB e HID para balanças e leitores. O EasyPrint foca em impressão simples, segura e pronta para ERP.</p>
+      <div class="table-wrap"><table>
+        <tr><th></th><th>QZ Tray 2.3</th><th>EasyPrint 1.0</th></tr>
+        <tr><td>Instalação</td><td>Administrador, CA raiz no Windows, regra de firewall</td><td class="yes">Pasta do usuário, sem admin, sem CA</td></tr>
+        <tr><td>Tamanho</td><td>140 MB (Java + JavaFX)</td><td class="yes">~90 MB, um único executável</td></tr>
+        <tr><td>Remover o aviso de site não confiável</td><td>Certificado pago (a partir de US$ 449/ano)</td><td class="yes">Um clique em Permitir, grátis</td></tr>
+        <tr><td>Acentos em térmicas</td><td>Regressão na 2.3.0 (issue #1519)</td><td class="yes">CP860/CP850 explícitos + teste guiado</td></tr>
+        <tr><td>Idioma</td><td>Inglês</td><td class="yes">Português</td></tr>
+        <tr><td>Configuração</td><td>Pelo código do site</td><td class="yes">Assistente para o lojista</td></tr>
+        <tr><td>PDF e HTML</td><td class="yes">Sim</td><td class="yes">Sim, inclusive em térmica e etiqueta</td></tr>
+        <tr><td>Finalidades (impressora por tipo de documento)</td><td>Não</td><td class="yes">Sim, escolhidas pelo lojista</td></tr>
+        <tr><td>Impressão pelo servidor</td><td>Não</td><td class="yes">Sim, com trabalhos assinados (Ed25519)</td></tr>
+        <tr><td>Serial, USB e HID</td><td class="yes">Sim</td><td>Ainda não</td></tr>
+        <tr><td>Linux</td><td class="yes">Sim</td><td class="yes">Sim (CUPS, USB direto, PDF, HTML)</td></tr>
+        <tr><td>macOS</td><td class="yes">Maduro</td><td>Básico (via CUPS, sem binário pronto)</td></tr>
+        <tr><td>Licença</td><td>LGPL 2.1</td><td class="yes">MIT</td></tr>
+      </table></div>
+    </section>
+
+    <section id="faq">
+      <div class="eyebrow">Ajuda</div>
+      <h2>Perguntas frequentes</h2>
+      <details><summary>Funciona com qual impressora?</summary><p>Qualquer impressora instalada no Windows. Térmicas ESC/POS (Epson, Elgin, Bematech, Daruma, Tanca, Knup, genéricas POS-58/80), etiquetas ZPL (Zebra, Elgin L42) e impressoras comuns jato de tinta ou laser.</p></details>
+      <details><summary>Os acentos saem errados. E agora?</summary><p>No painel: Impressoras → Ajustar → Acentos. Teste CP860 e depois CP850. O passo de teste do assistente faz isso automaticamente.</p></details>
+      <details><summary>Posso imprimir em duas impressoras (cozinha e caixa)?</summary><p>Sim. Use <code>printer.printers()</code> para listar as impressoras, guarde a escolha nas configurações do seu sistema e passe <code>{ printer: 'Cozinha' }</code> no <code>print</code>. Basta parte do nome.</p></details>
+      <details><summary>E se o EasyPrint estiver fechado?</summary><p>O SDK detecta, muda o status para <code>not_running</code> e reconecta sozinho quando o EasyPrint abre. Ative "Abrir quando o Windows iniciar" no painel para isso não acontecer.</p></details>
+      <details><summary>Funciona no celular ou tablet?</summary><p>Não. A impressão acontece no computador onde o EasyPrint está instalado. Para imprimir a partir do celular, envie o pedido para um computador da loja que tenha o EasyPrint aberto.</p></details>
+      <details><summary>Funciona no Linux?</summary><p>Sim. Use o binário <code>easyprint-linux-x64</code> (ou o script de instalação). Impressoras do CUPS e térmicas USB (<code>/dev/usb/lp*</code>) são detectadas. Se aparecer erro de permissão no USB, rode <code>sudo usermod -aG lp $USER</code> e entre de novo na sessão.</p></details>
+      <details><summary>Onde ficam as configurações?</summary><p>No Windows, em <code>%APPDATA%\EasyPrint\config.json</code>. No Linux, em <code>~/.config/easyprint/config.json</code>. O log <code>easyprint.log</code> fica na mesma pasta.</p></details>
+    </section>
+  </main>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ---- motor de layout (mesmo algoritmo do agente: wrap, duas colunas, tamanhos) ----
+  var chars = function (s) { return Array.from(String(s == null ? '' : s)); };
+  function wrap(text, width) {
+    var out = [];
+    String(text == null ? '' : text).split(/\r?\n/).forEach(function (para) {
+      if (!para.length) { out.push(''); return; }
+      var line = '';
+      para.split(/ +/).forEach(function (word) {
+        var w = word;
+        while (chars(w).length > width) { if (line) { out.push(line); line = ''; } out.push(chars(w).slice(0, width).join('')); w = chars(w).slice(width).join(''); }
+        if (!line) line = w;
+        else if (chars(line).length + 1 + chars(w).length <= width) line += ' ' + w;
+        else { out.push(line); line = w; }
+      });
+      out.push(line);
+    });
+    return out;
+  }
+  function twoCols(left, right, width) {
+    right = String(right == null ? '' : right);
+    var lines = wrap(left, Math.max(1, width - chars(right).length - 1));
+    var last = lines.pop() || '';
+    lines.push(last + ' '.repeat(Math.max(1, width - chars(last).length - chars(right).length)) + right);
+    return lines;
+  }
+  var TYPES = 'text, title, line, row, item, total, qr, barcode, image, feed, cut, drawer';
+  function layout(doc, cols) {
+    var blocks = Array.isArray(doc) ? doc : doc && Array.isArray(doc.blocks) ? doc.blocks : null;
+    if (!blocks) throw new Error('O documento precisa ter uma lista "blocks". Exemplo: { "blocks": ["Olá"] }');
+    var L = [];
+    var t = function (text, o) { o = o || {}; L.push({ k: 'text', text: text, align: o.align || 'left', bold: !!o.bold, size: o.size || 1 }); };
+    blocks.forEach(function (b, i) {
+      if (typeof b === 'string' || typeof b === 'number') b = { type: 'text', value: String(b) };
+      var size = Math.min(3, Math.max(1, Number(b.size) || 1));
+      switch (b.type) {
+        case 'text': wrap(b.value, Math.floor(cols / size)).forEach(function (l) { t(l, { align: b.align, bold: b.bold, size: size }); }); break;
+        case 'title': wrap(b.value, Math.floor(cols / 2)).forEach(function (l) { t(l, { align: 'center', bold: true, size: 2 }); }); break;
+        case 'line': t((b.char || '-').repeat(cols)); break;
+        case 'row': twoCols(b.left, b.right, Math.floor(cols / size)).forEach(function (l) { t(l, { bold: b.bold, size: size }); }); break;
+        case 'item':
+          twoCols((b.qty != null ? b.qty + 'x ' : '') + (b.name || ''), b.price || '', cols).forEach(function (l) { t(l, { bold: b.bold }); });
+          if (b.note) wrap(b.note, cols - 3).forEach(function (l) { t('   ' + l); });
+          break;
+        case 'total': twoCols(b.label || 'TOTAL', b.value || '', Math.floor(cols / 2)).forEach(function (l) { t(l, { bold: true, size: 2 }); }); break;
+        case 'qr': L.push({ k: 'qr' }); break;
+        case 'barcode': t('||| ' + (b.value || '') + ' |||', { align: 'center' }); break;
+        case 'image': t('[imagem]', { align: 'center' }); break;
+        case 'feed': for (var f = 0; f < Math.min(4, b.lines || 1); f++) t(''); break;
+        case 'cut': L.push({ k: 'cut' }); break;
+        case 'drawer': t('[abre a gaveta]', { align: 'center' }); break;
+        default: throw new Error('Bloco ' + i + ': tipo "' + b.type + '" não existe. Tipos válidos: ' + TYPES + '.');
+      }
+    });
+    return L;
+  }
+  function render(lines, cols, el) {
+    var paper = document.createElement('div');
+    paper.className = 'receipt';
+    paper.style.width = 'calc(' + cols + 'ch + 28px)';
+    lines.forEach(function (l) {
+      var d = document.createElement('div');
+      if (l.k === 'qr') d.className = 'qr';
+      else if (l.k === 'cut') d.className = 'cut';
+      else {
+        d.className = 'l' + (l.bold ? ' b' : '') + (l.size > 1 ? ' s2' : '');
+        d.style.textAlign = l.align;
+        d.textContent = l.text || ' ';
+      }
+      paper.appendChild(d);
+    });
+    el.replaceChildren(paper);
+  }
+
+  var SAMPLE = {
+    blocks: [
+      { type: 'title', value: 'PEDIDO #4821' },
+      { type: 'text', value: 'Pizzaria Bella Napoli', align: 'center' },
+      { type: 'text', value: '11/10/2026 19:42 · Delivery', align: 'center' },
+      { type: 'line' },
+      { type: 'item', qty: 1, name: 'Pizza Calabresa G', price: 'R$ 62,90', note: 'borda de catupiry, sem cebola' },
+      { type: 'item', qty: 2, name: 'Guaraná Antarctica 2L', price: 'R$ 25,80' },
+      { type: 'line' },
+      { type: 'row', left: 'Subtotal', right: 'R$ 88,70' },
+      { type: 'row', left: 'Taxa de entrega', right: 'R$ 6,00' },
+      { type: 'total', label: 'TOTAL', value: 'R$ 94,70' },
+      { type: 'line' },
+      { type: 'text', value: 'Cliente: João Araújo' },
+      { type: 'text', value: 'Rua das Acácias, 120 – ap. 34, Pinheiros' },
+      { type: 'text', value: 'Pagamento: Pix (pago)', bold: true },
+      { type: 'qr', value: 'https://bellanapoli.com.br/p/4821' },
+      { type: 'cut' }
+    ]
+  };
+
+  // Hero
+  render(layout({ blocks: SAMPLE.blocks.filter(function (b) { return ['title', 'line', 'item', 'row', 'total', 'qr', 'cut'].indexOf(b.type) >= 0; }) }, 32), 32, document.getElementById('hero-receipt'));
+
+  // Playground
+  var src = document.getElementById('pg-src'), out = document.getElementById('pg-out'), width = document.getElementById('pg-width'), legend = document.getElementById('pg-legend');
+  function update() {
+    var cols = Number(width.value);
+    try {
+      var lines = layout(JSON.parse(src.value), cols);
+      render(lines, cols, out);
+      legend.textContent = lines.length + ' linhas · ' + cols + ' colunas · ' + (cols === 48 ? '80 mm' : '58 mm');
+    } catch (e) {
+      var msg = e instanceof SyntaxError ? 'JSON inválido: confira vírgulas e aspas. (' + e.message + ')' : e.message;
+      var box = document.createElement('div'); box.className = 'err'; box.textContent = msg;
+      out.replaceChildren(box); legend.textContent = '';
+    }
+  }
+  src.value = JSON.stringify(SAMPLE, null, 2);
+  src.addEventListener('input', update);
+  width.addEventListener('change', update);
+  document.getElementById('pg-reset').addEventListener('click', function () { src.value = JSON.stringify(SAMPLE, null, 2); update(); });
+  update();
+
+  // Frameworks
+  var FW = {
+    'React': "// src/lib/printing.ts\nimport EasyPrint from './easyprint/easyprint.js';\nexport const printer = EasyPrint.connect({ appName: 'Minha Loja' });\n\n// src/hooks/useEasyPrint.ts\nimport { useEffect, useState } from 'react';\nimport { printer } from '../lib/printing';\n\nexport function useEasyPrint() {\n  const [diagnosis, setDiagnosis] = useState(printer.diagnose());\n  useEffect(() => printer.on('status', (_s, d) => setDiagnosis(d)), []);\n  return { printer, diagnosis, ready: diagnosis.ok };\n}\n\n// no componente\nconst { printer, diagnosis } = useEasyPrint();\nasync function handlePrint() {\n  try { await printer.print(orderToReceipt(order)); toast.success('Impresso!'); }\n  catch (err) { toast.error(`${err.message} — ${err.hint ?? ''}`); }\n}",
+    'Next.js': "'use client';\n// src/lib/printing.ts — o SDK só existe no navegador\nimport type { EasyPrintClient } from './easyprint/easyprint';\n\nlet client: EasyPrintClient | null = null;\nexport async function getPrinter() {\n  if (!client) {\n    const { default: EasyPrint } = await import('./easyprint/easyprint.js');\n    client = EasyPrint.connect({ appName: 'Minha Loja' });\n  }\n  return client;\n}\n\n// em um Client Component\nconst p = await getPrinter();\nawait p.print({ blocks: [{ type: 'title', value: 'PEDIDO #1' }, { type: 'cut' }] });",
+    'Vue / Nuxt': "// src/composables/useEasyPrint.ts\nimport { ref, onMounted, onBeforeUnmount } from 'vue';\nimport EasyPrint from '@/lib/easyprint/easyprint.js';\n\nlet printer = null;\nexport function useEasyPrint() {\n  const diagnosis = ref({ ok: false, title: 'Conectando…', steps: [] });\n  let off = () => {};\n  onMounted(() => {\n    printer ??= EasyPrint.connect({ appName: 'Minha Loja' });\n    off = printer.on('status', (_s, d) => (diagnosis.value = d));\n  });\n  onBeforeUnmount(() => off());\n  return { diagnosis, print: (doc, o) => printer.print(doc, o), EasyPrint };\n}\n// Nuxt: use em plugins/easyprint.client.ts ou dentro de <ClientOnly>",
+    'Angular': "import { Injectable, NgZone, PLATFORM_ID, inject, signal } from '@angular/core';\nimport { isPlatformBrowser } from '@angular/common';\nimport EasyPrint from '../lib/easyprint/easyprint.js';\n\n@Injectable({ providedIn: 'root' })\nexport class PrintingService {\n  private zone = inject(NgZone);\n  private client = isPlatformBrowser(inject(PLATFORM_ID))\n    ? EasyPrint.connect({ appName: 'Minha Loja' }) : null;\n  diagnosis = signal(this.client?.diagnose() ?? null);\n\n  constructor() {\n    this.client?.on('status', (_s, d) => this.zone.run(() => this.diagnosis.set(d)));\n  }\n  receipt() { return EasyPrint.receipt(); }\n  print(doc: any, opts?: any) { return this.client!.print(doc, opts); }\n}",
+    'Svelte': "// src/lib/printing.ts\nimport { readable } from 'svelte/store';\nimport { browser } from '$app/environment';\nimport EasyPrint from './easyprint/easyprint.js';\n\nexport const printer = browser ? EasyPrint.connect({ appName: 'Minha Loja' }) : null;\nexport const printerStatus = readable(printer?.diagnose() ?? null,\n  (set) => printer ? printer.on('status', (_s, d) => set(d)) : undefined);",
+    'Node / Electron': "// Apps sem navegador usam um token criado no painel (Sites e apps → Apps locais)\nconst EasyPrint = require('./easyprint.js'); // Node 22+\n\nconst printer = EasyPrint.connect({ token: process.env.EASYPRINT_TOKEN, appName: 'Servidor da loja' });\nawait printer.print({ blocks: ['Olá do servidor!', { type: 'cut' }] }, { printer: 'Cozinha' });"
+  };
+  var tabs = document.getElementById('fw-tabs'), fwCode = document.getElementById('fw-code');
+  Object.keys(FW).forEach(function (name, i) {
+    var b = document.createElement('button');
+    b.className = 'tab'; b.type = 'button'; b.setAttribute('role', 'tab'); b.textContent = name;
+    b.setAttribute('aria-selected', i === 0 ? 'true' : 'false');
+    b.addEventListener('click', function () {
+      tabs.querySelectorAll('.tab').forEach(function (x) { x.setAttribute('aria-selected', 'false'); });
+      b.setAttribute('aria-selected', 'true'); fwCode.textContent = FW[name];
+    });
+    tabs.appendChild(b);
+  });
+  fwCode.textContent = FW.React;
+
+  // Copiar
+  function copy(text, btn) {
+    var done = function () { var o = btn.textContent; btn.textContent = 'Copiado!'; setTimeout(function () { btn.textContent = o; }, 1600); };
+    var fallback = function () {
+      var ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); done(); } catch (e) { btn.textContent = 'Selecione e copie'; }
+      ta.remove();
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, fallback); else fallback();
+  }
+  document.querySelectorAll('[data-copy]').forEach(function (btn) {
+    btn.addEventListener('click', function () { copy(document.getElementById(btn.getAttribute('data-copy')).textContent, btn); });
+  });
+
+  // .zip mínimo (store) — usado só na página publicada
+  var CRC = (function () { var t = new Uint32Array(256); for (var n = 0; n < 256; n++) { var c = n; for (var k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+  function crc32(d) { var c = 0xffffffff; for (var i = 0; i < d.length; i++) c = CRC[(c ^ d[i]) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; }
+  function zipStore(entries) {
+    var enc = new TextEncoder(), parts = [], central = [], offset = 0;
+    entries.forEach(function (e) {
+      var name = enc.encode(e.name), crc = crc32(e.data), size = e.data.length;
+      var h = new DataView(new ArrayBuffer(30));
+      h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x0800, true);
+      h.setUint32(14, crc, true); h.setUint32(18, size, true); h.setUint32(22, size, true); h.setUint16(26, name.length, true);
+      var c = new DataView(new ArrayBuffer(46));
+      c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(8, 0x0800, true);
+      c.setUint32(16, crc, true); c.setUint32(20, size, true); c.setUint32(24, size, true); c.setUint16(28, name.length, true); c.setUint32(42, offset, true);
+      parts.push(h.buffer, name, e.data); central.push(c.buffer, name);
+      offset += 30 + name.length + size;
+    });
+    var cdSize = central.reduce(function (s, p) { return s + p.byteLength; }, 0);
+    var end = new DataView(new ArrayBuffer(22));
+    end.setUint32(0, 0x06054b50, true); end.setUint16(8, entries.length, true); end.setUint16(10, entries.length, true);
+    end.setUint32(12, cdSize, true); end.setUint32(16, offset, true);
+    return new Blob(parts.concat(central, [end.buffer]), { type: 'application/zip' });
+  }
+
+  // Downloads: no painel local (127.0.0.1) os links baixam; em outros lugares, oferecemos copiar.
+  var local = /^(127\.0\.0\.1|localhost)$/.test(location.hostname);
+  var skillBox = document.getElementById('dl-skill'), mdBox = document.getElementById('dl-md');
+  function link(href, label, primary) { var a = document.createElement('a'); a.className = 'btn' + (primary ? ' primary' : ''); a.href = href; a.setAttribute('download', ''); a.textContent = label; return a; }
+  function button(label, primary, onClick) {
+    var b = document.createElement('button'); b.type = 'button'; b.className = 'btn' + (primary ? ' primary' : ''); b.textContent = label;
+    b.addEventListener('click', function () { onClick(b); });
+    return b;
+  }
+  function note(box, text) {
+    var s = document.createElement('span'); s.className = 'muted'; s.style.fontSize = '.88rem'; s.textContent = text; box.appendChild(s);
+  }
+  var inViewer = !!(window.claude && window.claude.use);
+  if (local || !inViewer) {
+    skillBox.appendChild(link('easyprint-skill.zip', 'Baixar skill (.zip)', true));
+    mdBox.appendChild(link('EASYPRINT_AI.md', 'Baixar EASYPRINT_AI.md', true));
+  } else {
+    // Página publicada: baixa pelo recurso de downloads do visualizador; sem ele, oferece copiar.
+    var getBytes = function (f) { return fetch(f).then(function (r) { if (!r.ok) throw new Error(f); return r.arrayBuffer(); }); };
+    var SKILL_FILES = ['SKILL.md', 'reference/api.md', 'reference/frameworks.md', 'reference/troubleshooting.md', 'reference/erp.md', 'assets/easyprint.js', 'assets/easyprint.d.ts', 'assets/easyprint-cloud.js'];
+    var files = {
+      'EASYPRINT_AI.md': getBytes('EASYPRINT_AI.md').then(function (b) { return new Blob([b]); }).catch(function () { return null; }),
+      // Monta o .zip da skill no navegador a partir dos arquivos publicados (método "store", sem compressão)
+      'easyprint-skill.zip': Promise.all(SKILL_FILES.map(function (f) { return getBytes('skill/' + f); })).then(function (bufs) {
+        return zipStore(SKILL_FILES.map(function (f, i) { return { name: 'easyprint/' + f, data: new Uint8Array(bufs[i]) }; }));
+      }).catch(function () { return null; }),
+    };
+    var mdCopy = null;
+    files['EASYPRINT_AI.md'].then(function (b) { return b ? b.text() : null; }).then(function (t) { mdCopy = t; });
+    var copyBtn = button('Copiar conteúdo', false, function (b) { if (mdCopy) copy(mdCopy, b); else b.textContent = 'Carregando… tente de novo'; });
+
+    var dlPromise = window.claude && window.claude.use ? window.claude.use('downloads').catch(function () { return null; }) : Promise.resolve(null);
+    dlPromise.then(function (downloads) {
+      if (!downloads) {
+        mdBox.appendChild(copyBtn);
+        note(skillBox, 'Baixe o .zip no painel do EasyPrint: abra http://127.0.0.1:17777/docs/ no computador onde ele está instalado.');
+        return;
+      }
+      function saver(filename, label) {
+        return button(label, true, function (b) {
+          var original = b.textContent;
+          files[filename].then(function (blob) {
+            if (!blob) throw { code: 'missing' };
+            return downloads.save({ filename: filename, data: blob });
+          }).then(function () {
+            b.textContent = 'Baixado';
+          }, function (err) {
+            b.textContent = err && err.code === 'declined' ? original
+              : err && err.code === 'rate_limited' ? 'Aguarde e tente de novo'
+              : 'Download indisponível aqui';
+          }).then(function () { setTimeout(function () { b.textContent = original; }, 2500); });
+        });
+      }
+      skillBox.appendChild(saver('easyprint-skill.zip', 'Baixar skill (.zip)'));
+      mdBox.appendChild(saver('EASYPRINT_AI.md', 'Baixar EASYPRINT_AI.md'));
+      mdBox.appendChild(copyBtn);
+    });
+  }
+
+  // Sumário: destaca a seção visível
+  var links = Array.from(document.querySelectorAll('#toc a'));
+  if ('IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting) links.forEach(function (a) { a.classList.toggle('on', a.getAttribute('href') === '#' + e.target.id); });
+      });
+    }, { rootMargin: '-40% 0px -55% 0px' });
+    document.querySelectorAll('main section[id]').forEach(function (s) { io.observe(s); });
+  }
+})();
+</script>

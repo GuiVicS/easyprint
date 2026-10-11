@@ -1,0 +1,10 @@
+# EasyPrint
+
+> Agente local + SDK JavaScript para impressão direta do navegador em impressoras térmicas (ESC/POS), de etiqueta (ZPL) e comuns, com configuração por assistente e permissão por site.
+
+Para integrar o EasyPrint em um projeto, siga o arquivo EASYPRINT_AI.md (instruções completas, API, modelos por framework e o código do SDK).
+
+- [EASYPRINT_AI.md](EASYPRINT_AI.md): guia de integração para IAs, autossuficiente
+- [skill/easyprint/SKILL.md](skill/easyprint/SKILL.md): mesma orientação no formato de skill (Claude Code)
+- [sdk/easyprint.js](sdk/easyprint.js): SDK (UMD), sem dependências
+- [sdk/easyprint.d.ts](sdk/easyprint.d.ts): tipos TypeScript

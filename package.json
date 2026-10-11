@@ -1,0 +1,18 @@
+{
+  "name": "easyprint",
+  "version": "1.0.0",
+  "description": "Impressão direta do navegador para impressoras térmicas, de etiqueta e comuns — simples de instalar e de integrar.",
+  "license": "MIT",
+  "private": true,
+  "main": "dist/easyprint.js",
+  "module": "dist/easyprint.mjs",
+  "types": "dist/easyprint.d.ts",
+  "scripts": {
+    "start": "node agent/src/main.js",
+    "dev": "node agent/src/main.js --no-install",
+    "test": "node --test test/render.test.js test/integration.test.js test/sdk.test.js test/cloud.test.js test/erp.test.js",
+    "build": "node build.js",
+    "build:exe": "node build.js --exe --linux --site"
+  },
+  "engines": { "node": ">=22" }
+}

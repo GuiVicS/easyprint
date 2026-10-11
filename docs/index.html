@@ -1,0 +1,407 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><link rel="icon" href="icon.png"><meta name="theme-color" content="#12803f"><meta property="og:title" content="EasyPrint"><meta property="og:description" content="Impressão direta do navegador para térmicas, etiquetas e A4. Open source."></head><body><title>EasyPrint</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Figtree:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: página de produto em coluna única larga; o topo mostra os três "papéis" que o EasyPrint imprime (cupom, etiqueta, PDF) empilhados como objetos reais; seções seguem em blocos de largura de leitura. */
+:root {
+  --paper: #f5f8f6;
+  --surface: #ffffff;
+  --ink: #0f1a14;
+  --muted: #56645c;
+  --rule: #dbe4de;
+  --accent: #12803f;
+  --accent-bright: #22c55e;
+  --accent-ink: #ffffff;
+  --accent-soft: #e0f2e7;
+  --code-bg: #0d1511;
+  --code-fg: #d7e4dc;
+  --code-dim: #81958a;
+  --sheet: #ffffff;
+  --sheet-ink: #18201b;
+  --sheet-shadow: rgba(16, 32, 24, .18);
+  --label: #fffdf5;
+  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Figtree", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0b110e; --surface: #121a16; --ink: #e4ece7; --muted: #95a59c; --rule: #223029;
+    --accent: #3fd07c; --accent-bright: #4ade80; --accent-ink: #052012; --accent-soft: #12301f;
+    --code-bg: #070c09; --code-fg: #d3e1d8; --code-dim: #758a7e;
+    --sheet: #f3f2ec; --sheet-ink: #18201b; --sheet-shadow: rgba(0, 0, 0, .55); --label: #f7f3e6;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0b110e; --surface: #121a16; --ink: #e4ece7; --muted: #95a59c; --rule: #223029;
+  --accent: #3fd07c; --accent-bright: #4ade80; --accent-ink: #052012; --accent-soft: #12301f;
+  --code-bg: #070c09; --code-fg: #d3e1d8; --code-dim: #758a7e;
+  --sheet: #f3f2ec; --sheet-ink: #18201b; --sheet-shadow: rgba(0, 0, 0, .55); --label: #f7f3e6;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 17px/1.6 var(--font-body); }
+a { color: var(--accent); text-underline-offset: 3px; }
+h1, h2, h3 { font-family: var(--font-display); line-height: 1.08; margin: 0; text-wrap: balance; }
+p { margin: 0; max-width: 62ch; }
+code { font-family: var(--font-mono); font-size: .86em; }
+.wrap { max-width: 1140px; margin: 0 auto; padding-inline: 24px; }
+.eyebrow { font: 600 .74rem/1 var(--font-mono); letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
+.muted { color: var(--muted); }
+
+/* Barra */
+.bar { display: flex; align-items: center; gap: 20px; padding-block: 18px; }
+.brand { display: flex; align-items: center; gap: 10px; font: 800 1.2rem var(--font-display); color: var(--ink); text-decoration: none; }
+.brand svg { width: 34px; height: 34px; }
+.bar nav { display: flex; gap: 22px; margin-left: auto; flex-wrap: wrap; }
+.bar nav a { color: var(--muted); text-decoration: none; font-weight: 500; }
+.bar nav a:hover { color: var(--ink); }
+
+/* Botões */
+.btn { display: inline-flex; align-items: center; gap: 10px; padding: 13px 20px; border-radius: 12px; font: 600 1rem var(--font-body); text-decoration: none; border: 1px solid var(--rule); color: var(--ink); background: var(--surface); transition: transform .15s, border-color .15s, background .15s; cursor: pointer; }
+.btn:hover { transform: translateY(-2px); border-color: var(--accent); }
+.btn:focus-visible, a:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 45%, transparent); outline-offset: 2px; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn small { font: 500 .78rem var(--font-mono); opacity: .8; }
+.btn svg { width: 20px; height: 20px; flex: none; }
+
+/* Hero */
+.hero { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr); gap: 48px; align-items: center; padding-block: 48px 72px; }
+.hero h1 { font-size: clamp(2.8rem, 6.4vw, 5rem); font-weight: 800; letter-spacing: -.035em; }
+.hero h1 em { font-style: normal; color: var(--accent); }
+.hero .lede { font-size: 1.22rem; color: var(--muted); margin-top: 22px; max-width: 34ch; }
+.ctas { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 32px; }
+.facts { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 24px; font: 500 .82rem var(--font-mono); color: var(--muted); }
+.facts span::before { content: "✓ "; color: var(--accent); }
+
+/* Pilha de papéis */
+.stack { position: relative; height: 520px; }
+.sheet { position: absolute; background: var(--sheet); color: var(--sheet-ink); box-shadow: 0 18px 40px var(--sheet-shadow); transition: transform .3s; }
+.stack:hover .pdf { transform: rotate(-8deg) translate(-14px, -6px); }
+.stack:hover .label { transform: rotate(5deg) translate(12px, -4px); }
+.pdf { width: 300px; height: 400px; left: 0; top: 40px; transform: rotate(-6deg); padding: 22px; font: 9px/1.5 var(--font-mono); border-radius: 3px; }
+.pdf .pdf-head { display: flex; justify-content: space-between; border: 1px solid #333; padding: 8px; font-weight: 600; }
+.pdf .pdf-row { border: 1px solid #333; border-top: 0; padding: 6px 8px; display: flex; justify-content: space-between; gap: 8px; }
+.pdf .bars { height: 34px; margin: 10px 0; background: repeating-linear-gradient(90deg, #222 0 2px, transparent 2px 4px, #222 4px 7px, transparent 7px 8px, #222 8px 9px, transparent 9px 12px); }
+.pdf .tag { position: absolute; right: 14px; bottom: 12px; font: 600 10px var(--font-mono); color: var(--accent); }
+.label { width: 230px; height: 345px; right: 0; top: 0; transform: rotate(4deg); background: var(--label); border-radius: 8px; padding: 16px; font: 11px/1.35 var(--font-mono); display: grid; grid-template-rows: auto auto 1fr auto; gap: 8px; }
+.label b { font: 800 17px var(--font-display); letter-spacing: .02em; }
+.label .bars { height: 70px; background: repeating-linear-gradient(90deg, #111 0 3px, transparent 3px 5px, #111 5px 6px, transparent 6px 9px, #111 9px 12px, transparent 12px 13px); }
+.label .qr { width: 74px; height: 74px; justify-self: end; background: conic-gradient(#111 25%, transparent 0 50%, #111 0 75%, transparent 0) 0 0/14px 14px; outline: 5px solid #111; outline-offset: -5px; }
+.receipt { width: 250px; left: 32%; top: 150px; padding: 18px 14px 28px; font: 11.5px/1.4 var(--font-mono); white-space: pre; z-index: 2;
+  -webkit-mask: linear-gradient(#000 calc(100% - 9px), transparent 0), conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom/14px 9px repeat-x;
+  mask: linear-gradient(#000 calc(100% - 9px), transparent 0), conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom/14px 9px repeat-x; }
+.receipt .t { font-weight: 600; font-size: 1.9em; text-align: center; line-height: 1.1; }
+.receipt .c { text-align: center; }
+.receipt .b { font-weight: 600; }
+.receipt .big { font-weight: 600; font-size: 1.5em; }
+.receipt .qr { width: 70px; height: 70px; margin: 10px auto 0; background: conic-gradient(#111 25%, transparent 0 50%, #111 0 75%, transparent 0) 0 0/14px 14px; outline: 5px solid #111; outline-offset: -5px; }
+.caption { position: absolute; font: 500 .74rem var(--font-mono); color: var(--muted); }
+
+/* Seções */
+section.block { padding-block: 84px; border-top: 1px solid var(--rule); }
+section.block > .wrap > * + * { margin-top: 18px; }
+.block h2 { font-size: clamp(2rem, 4vw, 3rem); font-weight: 800; letter-spacing: -.025em; max-width: 20ch; }
+.block .intro { font-size: 1.12rem; color: var(--muted); }
+
+.audience { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin-top: 36px !important; }
+.aud { padding: 26px; border-radius: 16px; background: var(--surface); border: 1px solid var(--rule); display: grid; gap: 10px; align-content: start; }
+.aud h3 { font-size: 1.35rem; font-weight: 700; }
+.aud ul { margin: 6px 0 0; padding-left: 18px; color: var(--muted); }
+.aud li + li { margin-top: 4px; }
+
+.features { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; margin-top: 40px !important; border-top: 1px solid var(--rule); }
+.feat { padding: 26px 24px 26px 0; border-bottom: 1px solid var(--rule); display: grid; gap: 8px; align-content: start; }
+.feat:not(:nth-child(3n)) { border-right: 1px solid var(--rule); }
+.feat:not(:nth-child(3n+1)) { padding-left: 24px; }
+.feat h3 { font-size: 1.12rem; font-weight: 700; font-family: var(--font-body); }
+.feat p { color: var(--muted); font-size: .97rem; }
+.feat .spec { font: 500 .78rem var(--font-mono); color: var(--accent); }
+
+.dev { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); gap: 40px; align-items: start; margin-top: 36px !important; }
+.code { background: var(--code-bg); color: var(--code-fg); border-radius: 14px; font: 13.5px/1.65 var(--font-mono); overflow-x: auto; }
+.code pre { margin: 0; padding: 22px 24px; }
+.code .k { color: var(--accent-bright); }
+.code .c { color: var(--code-dim); }
+.steps { list-style: none; padding: 0; margin: 0; display: grid; gap: 18px; counter-reset: s; }
+.steps li { counter-increment: s; display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 14px; }
+.steps li::before { content: counter(s); width: 36px; height: 36px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; font: 700 .95rem var(--font-mono); }
+.steps b { display: block; }
+.steps span { color: var(--muted); font-size: .96rem; }
+
+.sec-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 36px; margin-top: 30px !important; }
+.sec-list div { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 10px; }
+.sec-list div::before { content: "✓"; color: var(--accent); font-weight: 700; }
+.sec-list b { display: block; }
+.sec-list span { color: var(--muted); font-size: .95rem; }
+
+.ai { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; margin-top: 32px !important; }
+.ai > div { padding: 24px; border-radius: 16px; border: 1px solid var(--rule); background: var(--surface); display: grid; gap: 10px; align-content: start; }
+.ai h3 { font-size: 1.2rem; font-weight: 700; }
+
+.table-wrap { overflow-x: auto; border: 1px solid var(--rule); border-radius: 14px; background: var(--surface); margin-top: 30px !important; }
+table { border-collapse: collapse; width: 100%; font-size: .95rem; }
+th, td { text-align: left; padding: 12px 16px; border-bottom: 1px solid var(--rule); }
+th { font: 600 .72rem var(--font-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+tr:last-child td { border-bottom: 0; }
+td.y { color: var(--accent); font-weight: 600; }
+
+.download { text-align: left; }
+.dl-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-top: 30px !important; }
+.dl-card { padding: 28px; border-radius: 18px; background: var(--surface); border: 1px solid var(--rule); display: grid; gap: 14px; align-content: start; }
+.dl-card h3 { font-size: 1.5rem; font-weight: 700; }
+.cmd { display: flex; align-items: center; gap: 10px; background: var(--code-bg); color: var(--code-fg); border-radius: 10px; padding: 10px 12px; font: 12.5px var(--font-mono); min-width: 0; }
+.cmd code { overflow-x: auto; white-space: nowrap; flex: 1; min-width: 0; font-size: 1em; }
+.cmd button { flex: none; background: #22302a; color: var(--code-fg); border: 1px solid #33443b; border-radius: 7px; padding: 4px 10px; font: 600 .78rem var(--font-body); cursor: pointer; }
+
+footer { border-top: 1px solid var(--rule); padding-block: 36px 56px; color: var(--muted); font-size: .92rem; }
+footer .wrap { display: flex; flex-wrap: wrap; gap: 16px 28px; align-items: center; }
+footer nav { display: flex; gap: 20px; margin-left: auto; flex-wrap: wrap; }
+
+@media (max-width: 900px) {
+  .hero, .dev, .ai, .dl-grid, .audience { grid-template-columns: minmax(0, 1fr); }
+  .features { grid-template-columns: minmax(0, 1fr); }
+  .feat, .feat:not(:nth-child(3n+1)) { padding: 22px 0; border-right: 0 !important; }
+  .sec-list { grid-template-columns: minmax(0, 1fr); }
+  .stack { height: 470px; max-width: 420px; margin: 0 auto; width: 100%; }
+  .pdf { width: 220px; height: 300px; }
+  .label { width: 180px; height: 270px; }
+  .receipt { left: 22%; top: 150px; width: 220px; font-size: 10.5px; }
+  .bar nav { display: none; }
+  section.block { padding-block: 60px; }
+}
+@media (max-width: 420px) { .receipt { left: 12%; } .label { right: -6px; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<header class="wrap bar">
+  <a class="brand" href="#topo">
+    <svg viewBox="0 0 256 256" aria-hidden="true"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#34d27a"/><stop offset="1" stop-color="#0f7a3c"/></linearGradient></defs><rect x="8" y="8" width="240" height="240" rx="56" fill="url(#g)"/><rect x="82" y="46" width="92" height="70" rx="10" fill="#fff" fill-opacity=".3"/><rect x="52" y="96" width="152" height="80" rx="22" fill="#fff"/><rect x="78" y="146" width="100" height="8" fill="#0f7a3c"/><rect x="86" y="150" width="84" height="66" rx="6" fill="#fff"/><rect x="100" y="168" width="56" height="5" fill="#0f7a3c"/><rect x="100" y="182" width="44" height="5" fill="#0f7a3c"/><rect x="100" y="196" width="30" height="5" fill="#0f7a3c"/><circle cx="179" cy="119" r="7" fill="#0f7a3c"/></svg>
+    EasyPrint
+  </a>
+  <nav>
+    <a href="#recursos">Recursos</a>
+    <a href="#devs">Desenvolvedores</a>
+    <a href="#seguranca">Segurança</a>
+    <a href="https://guivics.github.io/easyprint/docs/" target="_blank" rel="noopener">Documentação</a>
+    <a href="https://github.com/GuiVicS/easyprint" target="_blank" rel="noopener">GitHub</a>
+  </nav>
+</header>
+
+<main id="topo">
+  <div class="wrap hero">
+    <div>
+      <div class="eyebrow">Open source · MIT · Windows e Linux</div>
+      <h1 style="margin-top:18px">Do sistema da loja <em>direto</em> para a impressora.</h1>
+      <p class="lede">Cupom na térmica, etiqueta na Zebra, DANFE na laser. Sem janela de impressão, com acentos certos e um assistente em português que configura tudo em 2 minutos.</p>
+      <div class="ctas">
+        <a class="btn primary" id="cta-main" href="https://github.com/GuiVicS/easyprint/releases/latest/download/EasyPrint.exe">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5.5 10.5 4.4v7.1H3zm0 13 7.5 1.1v-7H3zM11.4 4.3 21 3v8.5h-9.6zm0 15.4L21 21v-8.6h-9.6z"/></svg>
+          <span id="cta-label">Baixar para Windows</span> <small id="cta-size">.exe · 88 MB</small>
+        </a>
+        <a class="btn" href="https://github.com/GuiVicS/easyprint" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.6 22.4c.6.1.8-.3.8-.6v-2c-3.2.7-3.9-1.5-3.9-1.5-.5-1.3-1.3-1.7-1.3-1.7-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.7-1.6-2.6-.3-5.3-1.3-5.3-5.7 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.2 1.2a11 11 0 0 1 5.8 0c2.2-1.5 3.2-1.2 3.2-1.2.6 1.6.2 2.8.1 3.1.8.8 1.2 1.9 1.2 3.1 0 4.4-2.7 5.4-5.3 5.7.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A11.5 11.5 0 0 0 12 .5"/></svg>
+          Código no GitHub
+        </a>
+        <a class="btn" href="https://guivics.github.io/easyprint/docs/" target="_blank" rel="noopener">Documentação</a>
+      </div>
+      <div class="facts"><span>sem administrador</span><span>sem certificado raiz</span><span>sem mensalidade</span><span>pt-BR</span></div>
+    </div>
+
+    <div class="stack" aria-label="Exemplos de impressão: DANFE em PDF, etiqueta de envio e cupom térmico">
+      <div class="sheet pdf">
+        <div class="pdf-head"><span>DANFE</span><span>Nº 004.821 · Série 1</span></div>
+        <div class="pdf-row"><span>Destinatário</span><span>João Araújo</span></div>
+        <div class="pdf-row"><span>CEP</span><span>05422-010</span></div>
+        <div class="pdf-row"><span>Valor total</span><span>R$ 94,70</span></div>
+        <div class="bars"></div>
+        <div>CHAVE DE ACESSO<br>3526 1012 3456 7800 0190 5500 1000 0048 2112 3456 7890</div>
+        <div class="tag">PDF → A4</div>
+      </div>
+      <div class="sheet label">
+        <b>MERCADO ENVIOS</b>
+        <div>Para: João Araújo<br>Rua das Acácias, 120<br>05422-010 · São Paulo/SP</div>
+        <div class="bars" style="align-self:end"></div>
+        <div style="display:flex;justify-content:space-between;align-items:end"><span>ZPL · 100×150 mm<br>203 dpi</span><span class="qr"></span></div>
+      </div>
+      <div class="sheet receipt" id="receipt"></div>
+    </div>
+  </div>
+
+  <section class="block" id="recursos">
+    <div class="wrap">
+      <div class="eyebrow">Para quem</div>
+      <h2>Feito para quem imprime de verdade.</h2>
+      <p class="intro">Delivery, varejo, expedição. O EasyPrint roda no computador da loja e deixa os sistemas autorizados imprimirem sem perguntar nada a cada pedido.</p>
+      <div class="audience">
+        <div class="aud"><div class="eyebrow">Lojas e delivery</div><h3>Instala e funciona</h3><p class="muted">Um assistente detecta a impressora, imprime o teste e corrige os acentos sozinho.</p>
+          <ul><li>Epson, Elgin, Bematech, Daruma, Zebra…</li><li>Simulador para testar sem papel</li><li>Inicia junto com o computador</li></ul></div>
+        <div class="aud"><div class="eyebrow">ERPs e e-commerce</div><h3>Cada documento na impressora certa</h3><p class="muted">Etiqueta na Zebra, DANFE na laser, pedido na cozinha. O lojista escolhe uma vez.</p>
+          <ul><li>PDF, HTML e ZPL do marketplace</li><li>Impressão pelo servidor, sem tela aberta</li><li>Trabalhos assinados (Ed25519)</li></ul></div>
+        <div class="aud"><div class="eyebrow">Desenvolvedores</div><h3>Um arquivo e dez linhas</h3><p class="muted">SDK sem dependências, tipos para TypeScript e erros que explicam como resolver.</p>
+          <ul><li>React, Next, Vue, Angular, Svelte, HTML</li><li>Skill pronta para IA integrar por você</li><li>MIT: use em projeto comercial</li></ul></div>
+      </div>
+
+      <div class="features">
+        <div class="feat"><div class="spec">58 mm = 32 col · 80 mm = 48 col</div><h3>Documento universal</h3><p>Título, item, total, QR, código de barras e imagem. O mesmo código imprime em térmica, etiqueta ou A4.</p></div>
+        <div class="feat"><div class="spec">CP860 · CP850 · CP1252</div><h3>Acentos que saem certos</h3><p>"ação", "pão" e "maçã" na térmica. O teste guiado troca a tabela até sair perfeito.</p></div>
+        <div class="feat"><div class="spec">printPdf · printHtml · printRaw</div><h3>PDF, HTML e ZPL</h3><p>Use os arquivos que seu sistema já gera. Códigos de barras saem nítidos, sem pontilhado.</p></div>
+        <div class="feat"><div class="spec">routes: { etiqueta, danfe, pedido }</div><h3>Finalidades</h3><p>O sistema diz o que imprime e o lojista escolhe onde. O código nunca fixa nome de impressora.</p></div>
+        <div class="feat"><div class="spec">long-polling · HTTPS · só saída</div><h3>Impressão pela nuvem</h3><p>O pedido chega às 3h e a etiqueta já sai. Relay de referência e SDK de servidor incluídos.</p></div>
+        <div class="feat"><div class="spec">Windows 10/11 · Linux x64</div><h3>Leve e sem burocracia</h3><p>Um executável. Sem Java, sem administrador, sem certificado raiz, sem regra de firewall.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="devs">
+    <div class="wrap">
+      <div class="eyebrow">Para desenvolvedores</div>
+      <h2>Primeira impressão em cinco minutos.</h2>
+      <div class="dev">
+        <ol class="steps">
+          <li><div><b>Instale o EasyPrint</b><span>Rode o assistente e escolha o Simulador se ainda não tiver impressora.</span></div></li>
+          <li><div><b>Copie o SDK</b><span><code>easyprint.js</code>, um arquivo sem dependências, com <code>.d.ts</code> para TypeScript.</span></div></li>
+          <li><div><b>Conecte e imprima</b><span>Na primeira vez, o lojista clica em Permitir. Depois disso, não pergunta mais.</span></div></li>
+          <li><div><b>Ou deixe a IA fazer</b><span>Entregue o <code>EASYPRINT_AI.md</code> ao Claude, ChatGPT, Cursor ou Copilot.</span></div></li>
+        </ol>
+        <div class="code"><pre><span class="k">const</span> printer = EasyPrint.connect({
+  appName: <span class="k">'Minha Loja'</span>,
+  routes: { pedido: <span class="k">'Pedidos'</span>, etiqueta: <span class="k">'Etiquetas'</span> },
+});
+
+<span class="c">// cupom na térmica</span>
+<span class="k">await</span> printer.print(
+  EasyPrint.receipt()
+    .title(<span class="k">'PEDIDO #4821'</span>)
+    .item(1, <span class="k">'Pizza Calabresa G'</span>, <span class="k">'R$ 62,90'</span>, <span class="k">'sem cebola'</span>)
+    .total(<span class="k">'TOTAL'</span>, <span class="k">'R$ 94,70'</span>)
+    .qr(<span class="k">'https://loja.com/p/4821'</span>)
+    .cut(),
+  { route: <span class="k">'pedido'</span> }
+);
+
+<span class="c">// etiqueta do marketplace e DANFE</span>
+<span class="k">await</span> printer.printRaw(zpl, { route: <span class="k">'etiqueta'</span> });
+<span class="k">await</span> printer.printPdf(<span class="k">'/notas/4821.pdf'</span>);</pre></div>
+      </div>
+      <div class="ai">
+        <div><div class="eyebrow">Integração com IA</div><h3>Skill para Claude Code</h3><p class="muted">Extraia em <code>~/.claude/skills/</code> e peça: "integre impressão com EasyPrint". A IA detecta o framework e cria serviço, status e tratamento de erros.</p>
+          <a class="btn" href="https://github.com/GuiVicS/easyprint/releases/latest/download/easyprint-skill.zip">Baixar skill (.zip)</a></div>
+        <div><div class="eyebrow">Qualquer IA</div><h3>EASYPRINT_AI.md</h3><p class="muted">Um arquivo com o passo a passo, receitas para ERP e o código do SDK. Funciona no ChatGPT, Gemini, Cursor, Copilot, Lovable e Bolt.</p>
+          <a class="btn" href="https://github.com/GuiVicS/easyprint/blob/main/EASYPRINT_AI.md" target="_blank" rel="noopener">Abrir no GitHub</a></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="seguranca">
+    <div class="wrap">
+      <div class="eyebrow">Segurança</div>
+      <h2>Simples para o lojista, rígido por dentro.</h2>
+      <p class="intro">Um programa que imprime no computador da loja precisa ser difícil de abusar. Cada camada foi coberta por testes automatizados, incluindo ataques simulados.</p>
+      <div class="sec-list">
+        <div><div><b>Só local</b><span>Escuta apenas em 127.0.0.1. Nenhuma porta fica aberta para a rede.</span></div></div>
+        <div><div><b>Permissão por site</b><span>Cada site novo precisa de um clique em Permitir. O endereço vem do navegador e não pode ser falsificado.</span></div></div>
+        <div><div><b>Trabalhos assinados</b><span>Na nuvem, cada impressão leva assinatura Ed25519 do seu sistema. Nem um relay invadido consegue imprimir.</span></div></div>
+        <div><div><b>Anti-replay e validade</b><span>Cada trabalho imprime uma única vez e expira. Um trabalho da Loja A é recusado na Loja B.</span></div></div>
+        <div><div><b>Gaveta protegida</b><span>Abrir a gaveta de dinheiro pela nuvem vem bloqueado até o lojista liberar.</span></div></div>
+        <div><div><b>HTML isolado</b><span>HTML é renderizado num navegador separado, com JavaScript bloqueado por CSP.</span></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="wrap">
+      <div class="eyebrow">Comparativo</div>
+      <h2>Onde o EasyPrint é diferente.</h2>
+      <div class="table-wrap"><table>
+        <tr><th></th><th>QZ Tray 2.3</th><th>EasyPrint</th></tr>
+        <tr><td>Instalação</td><td>Administrador, certificado raiz e regra de firewall</td><td class="y">Pasta do usuário, sem administrador</td></tr>
+        <tr><td>Tirar o aviso de site não confiável</td><td>Certificado pago, a partir de US$ 449/ano</td><td class="y">Um clique em Permitir, grátis</td></tr>
+        <tr><td>Configuração</td><td>No código do site</td><td class="y">Assistente para o lojista, em português</td></tr>
+        <tr><td>Impressora por tipo de documento</td><td>Não</td><td class="y">Finalidades</td></tr>
+        <tr><td>Impressão pelo servidor</td><td>Não</td><td class="y">Sim, com trabalhos assinados</td></tr>
+        <tr><td>Serial, USB e HID diretos</td><td class="y">Sim</td><td>Não (foco em impressão)</td></tr>
+        <tr><td>Licença</td><td>LGPL 2.1</td><td class="y">MIT</td></tr>
+      </table></div>
+    </div>
+  </section>
+
+  <section class="block download" id="baixar">
+    <div class="wrap">
+      <div class="eyebrow">Download</div>
+      <h2>Comece agora. É grátis e open source.</h2>
+      <div class="dl-grid">
+        <div class="dl-card">
+          <div class="eyebrow">Windows 10 e 11</div>
+          <h3>EasyPrint.exe</h3>
+          <p class="muted">Abra o arquivo: ele se instala na sua pasta de usuário e abre o assistente. O Windows pode mostrar um aviso do SmartScreen na primeira vez. Clique em "Mais informações" → "Executar assim mesmo".</p>
+          <div><a class="btn primary" href="https://github.com/GuiVicS/easyprint/releases/latest/download/EasyPrint.exe">Baixar para Windows <small>.exe</small></a></div>
+        </div>
+        <div class="dl-card">
+          <div class="eyebrow">Linux x64</div>
+          <h3>easyprint-linux-x64</h3>
+          <p class="muted">Instala em <code>~/.local/bin</code> com atalho no menu. Usa as impressoras do CUPS e térmicas USB diretas.</p>
+          <div class="cmd"><code id="linux-cmd">curl -fsSL https://github.com/GuiVicS/easyprint/raw/main/install.sh | sh</code><button type="button" id="copy-linux">Copiar</button></div>
+          <div><a class="btn" href="https://github.com/GuiVicS/easyprint/releases/latest/download/easyprint-linux-x64">Baixar binário</a></div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>EasyPrint · código aberto sob licença MIT</span>
+    <nav>
+      <a href="https://github.com/GuiVicS/easyprint" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://guivics.github.io/easyprint/docs/" target="_blank" rel="noopener">Documentação</a>
+      <a href="https://github.com/GuiVicS/easyprint/releases" target="_blank" rel="noopener">Versões</a>
+      <a href="https://github.com/GuiVicS/easyprint/issues" target="_blank" rel="noopener">Relatar um problema</a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+(function () {
+  'use strict';
+  // Cupom do topo: mesmo algoritmo de colunas do agente (32 colunas = 58 mm)
+  var COLS = 32;
+  function row(l, r, cols) { cols = cols || COLS; var gap = Math.max(1, cols - l.length - r.length); return l + ' '.repeat(gap) + r; }
+  var lines = [
+    ['t', 'PEDIDO #4821'], ['c', 'Pizzaria Bella Napoli'], ['', '-'.repeat(COLS)],
+    ['', row('1x Pizza Calabresa G', 'R$ 62,90')], ['', '   borda de catupiry'],
+    ['', row('2x Guaraná 2L', 'R$ 25,80')], ['', '-'.repeat(COLS)],
+    ['', row('Entrega', 'R$ 6,00')], ['big', row('TOTAL', 'R$ 94,70', Math.floor(COLS / 1.5))],
+    ['b', 'Pagamento: Pix (pago)'], ['qr', '']
+  ];
+  var el = document.getElementById('receipt');
+  lines.forEach(function (l) {
+    var d = document.createElement('div');
+    d.className = l[0];
+    d.textContent = l[1] || ' ';
+    if (l[0] === 'qr') d.textContent = '';
+    el.appendChild(d);
+  });
+
+  // Destaca o download do sistema de quem está visitando
+  if (/Linux/.test(navigator.userAgent) && !/Android/.test(navigator.userAgent)) {
+    var a = document.getElementById('cta-main');
+    a.href = '#baixar';
+    document.getElementById('cta-label').textContent = 'Baixar para Linux';
+    document.getElementById('cta-size').textContent = 'x64';
+  }
+
+  document.getElementById('copy-linux').addEventListener('click', function () {
+    var btn = this, text = document.getElementById('linux-cmd').textContent;
+    var done = function () { btn.textContent = 'Copiado!'; setTimeout(function () { btn.textContent = 'Copiar'; }, 1600); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, function () {
+      var r = document.createRange(); r.selectNodeContents(document.getElementById('linux-cmd'));
+      var s = window.getSelection(); s.removeAllRanges(); s.addRange(r); btn.textContent = 'Selecionado';
+    });
+  });
+})();
+</script>
+</body></html>
