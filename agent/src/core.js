@@ -14,6 +14,7 @@ const { Config, VERSION } = require('./config');
 const { PrintService } = require('./printing');
 const { CloudRelay, generateEncryptionKeys, verifyJob, fingerprint } = require('./cloud');
 const { EPError, toErrorPayload } = require('./errors');
+const { testDocument } = require('./test-document');
 
 /**
  * @param {object} o
@@ -53,6 +54,12 @@ function createCore({ home, log = () => {} } = {}) {
     /** Finalidade → impressora (ex.: { cozinha: 'EPSON TM-T20' }). Quem embute decide de onde isso vem (ex.: do servidor). */
     setRoutes(routes) { config.set('routes', { ...(routes || {}) }); },
     setDefaultPrinter(name) { config.set('defaultPrinter', name || null); },
+    /** Impressoras com o perfil de cada uma: { name, kind, online, isDefault, profile: { mode, paperWidth, columns, paperSize, … } } */
+    async printerProfiles() { return (await printing.list({ fresh: true })).map((p) => ({ name: p.name, kind: p.kind, online: p.online, isDefault: p.isDefault, profile: p.profile })); },
+    /** Muda o perfil de uma impressora (ex.: { mode: 'escpos', paperWidth: 58 }); {} volta para a detecção automática. */
+    setProfile(name, profile) { printing.setProfile(name, profile); },
+    /** Imprime uma página de teste (a do EasyPrint ou o documento informado) na impressora indicada ou na padrão. */
+    testPrint(name, document) { return printing.print({ printer: name || undefined, document: document || testDocument(), jobName: 'Teste de impressão' }, { appName: 'Teste de impressão' }); },
   };
 }
 

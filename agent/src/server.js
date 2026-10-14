@@ -129,18 +129,9 @@ function createServer({ config, security, printing, cloud, updates, log, onQuit 
       case 'GET state': return ok(await state());
       case 'GET printers': return ok(await printing.list({ fresh: url.searchParams.has('fresh') }));
       case 'GET jobs': return ok(printing.recentJobs());
-      case 'POST profile': {
-        const profiles = config.get('profiles');
-        const allowed = ['mode', 'paperWidth', 'codepage', 'autoCut', 'columns', 'fontSize', 'labelWidth', 'labelHeight', 'dpi', 'paperSize'];
-        const prof = {};
-        for (const k of allowed) if (body.profile && body.profile[k] !== undefined && body.profile[k] !== null && body.profile[k] !== '') prof[k] = body.profile[k];
-        if (prof.columns) prof.columns = Math.min(120, Math.max(16, Number(prof.columns)));
-        if (Object.keys(prof).length) profiles[String(body.printer)] = prof;
-        else delete profiles[String(body.printer)]; // volta para a detecção automática
-        config.set('profiles', profiles);
-        printing.cache.at = 0;
+      case 'POST profile':
+        printing.setProfile(body.printer, body.profile); // perfil vazio volta para a detecção automática
         return ok(true);
-      }
       case 'POST default':
         config.set('defaultPrinter', body.printer || null); printing.cache.at = 0; return ok(true);
       case 'POST test-print':
