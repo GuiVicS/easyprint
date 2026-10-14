@@ -30,8 +30,9 @@ const DEFAULTS = {
 };
 
 class Config {
-  constructor() {
-    this.dir = homeDir();
+  /** @param {string} [dir] pasta de dados (padrão: a do EasyPrint). Use ao embutir o núcleo em outro aplicativo. */
+  constructor(dir) {
+    this.dir = dir || homeDir();
     this.file = path.join(this.dir, 'config.json');
     fs.mkdirSync(this.dir, { recursive: true });
     this.data = { ...DEFAULTS };

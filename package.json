@@ -7,10 +7,16 @@
   "main": "dist/easyprint.js",
   "module": "dist/easyprint.mjs",
   "types": "dist/easyprint.d.ts",
+  "exports": {
+    ".": { "types": "./dist/easyprint.d.ts", "import": "./dist/easyprint.mjs", "require": "./dist/easyprint.js" },
+    "./core": { "types": "./agent/src/core.d.ts", "default": "./agent/src/core.js" },
+    "./package.json": "./package.json"
+  },
+  "files": ["agent/src", "agent/assets/win-helper.ps1", "sdk", "cloud", "LICENSE", "README.md"],
   "scripts": {
     "start": "node agent/src/main.js",
     "dev": "node agent/src/main.js --no-install",
-    "test": "node --test test/render.test.js test/integration.test.js test/sdk.test.js test/cloud.test.js test/erp.test.js test/security.test.js",
+    "test": "node --test test/render.test.js test/integration.test.js test/sdk.test.js test/cloud.test.js test/erp.test.js test/security.test.js test/core.test.js",
     "build": "node build.js",
     "build:exe": "node build.js --exe --linux --site"
   },
