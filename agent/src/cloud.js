@@ -14,6 +14,11 @@
 //     código depois de conectado não serve para nada.
 //  6. Trabalho amarrado ao dispositivo, com validade e id único nunca aceito duas vezes (anti-replay).
 //  7. Políticas por conexão (gaveta bloqueada por padrão) e segredos guardados com DPAPI / arquivo 0600.
+//
+// Conexão GERENCIADA (attach): para quem embute o núcleo em outro aplicativo que já tem o próprio login.
+// O aplicativo gera o par de chaves, registra a pública no servidor pelo canal autenticado dele e entrega
+// aqui a conexão pronta, com uma função que devolve o token atual (ele pode ser renovado a qualquer hora).
+// Nada dessa conexão é gravado no config deste módulo: os segredos ficam com o aplicativo.
 const crypto = require('crypto');
 const fs = require('fs');
 const { EventEmitter } = require('events');
@@ -130,16 +135,17 @@ class CloudRelay extends EventEmitter {
     this.driver = driver;
     this.log = log;
     this.runtime = new Map(); // id -> { state, lastContact, lastError, printed, rejected, controller, privateKey }
+    this.managed = new Map(); // id -> conexão gerenciada pelo aplicativo hospedeiro (não vai para o config)
     this.seen = new SeenStore(config.path('cloud-seen.json'));
   }
 
   connections() { return this.config.get('cloud') || []; }
 
   publicState() {
-    return this.connections().map((c) => {
+    return [...this.connections(), ...this.managed.values()].map((c) => {
       const r = this.runtime.get(c.id) || {};
       return {
-        id: c.id, name: c.name, host: new URL(c.url).host, deviceId: c.deviceId, fingerprint: c.fingerprint,
+        id: c.id, name: c.name, host: new URL(c.url).host, deviceId: c.deviceId, fingerprint: c.fingerprint, managed: !!c.getToken,
         encryptionFingerprint: c.encryptionKey ? fingerprint(c.encryptionKey) : null, dev: !!c.dev,
         enabled: c.enabled !== false, allowRaw: c.allowRaw !== false, allowDrawer: !!c.allowDrawer, allowPdf: c.allowPdf !== false,
         addedAt: c.addedAt, state: c.enabled === false ? 'paused' : r.state || 'connecting',
@@ -190,6 +196,55 @@ class CloudRelay extends EventEmitter {
     return this.publicState().find((c) => c.id === conn.id);
   }
 
+  /**
+   * Liga uma conexão gerenciada pelo aplicativo hospedeiro (sem código de conexão).
+   * @param {object} c
+   * @param {string} c.id          identificador local da conexão
+   * @param {string} c.url         endereço da fila (https; http só em localhost)
+   * @param {string} c.deviceId    id deste computador na fila
+   * @param {string} c.publicKey   chave Ed25519 (SPKI base64) que assina os trabalhos
+   * @param {string} c.privateKey  chave X25519 privada deste computador (PKCS8 base64), gerada com generateEncryptionKeys()
+   * @param {() => (string|Promise<string>)} c.getToken  devolve o token atual a cada chamada
+   * @param {{name?: string, version?: string}} [c.agent] como o computador se apresenta ao servidor
+   */
+  attach(c) {
+    if (!c || !c.id || !c.deviceId || typeof c.getToken !== 'function') throw new EPError('INVALID_CONNECTION', 'Conexão gerenciada incompleta.');
+    let url;
+    try { url = new URL(c.url); } catch { throw new EPError('INVALID_CONNECTION', 'Endereço do servidor inválido.'); }
+    if (url.protocol !== 'https:' && !(url.protocol === 'http:' && isLocalHost(url.hostname))) throw new EPError('INSECURE_URL', 'O servidor precisa usar HTTPS.');
+    let signer, priv;
+    try { signer = crypto.createPublicKey({ key: Buffer.from(c.publicKey, 'base64'), format: 'der', type: 'spki' }); priv = crypto.createPrivateKey({ key: Buffer.from(c.privateKey, 'base64'), format: 'der', type: 'pkcs8' }); }
+    catch { throw new EPError('INVALID_CONNECTION', 'Chaves da conexão inválidas.'); }
+    if (signer.asymmetricKeyType !== 'ed25519' || priv.asymmetricKeyType !== 'x25519') throw new EPError('INVALID_CONNECTION', 'Tipo de chave inesperado na conexão.');
+    const encryptionKey = crypto.createPublicKey(priv).export({ format: 'der', type: 'spki' }).toString('base64');
+    const conn = {
+      id: String(c.id), name: String(c.name || url.hostname).slice(0, 60), url: url.origin + url.pathname.replace(/\/+$/, ''), deviceId: String(c.deviceId),
+      publicKey: c.publicKey, fingerprint: fingerprint(c.publicKey), encryptionKey, dev: url.protocol === 'http:', getToken: c.getToken, agent: c.agent || null,
+      enabled: true, allowRaw: c.allowRaw !== false, allowDrawer: !!c.allowDrawer, allowPdf: c.allowPdf !== false, addedAt: new Date().toISOString(),
+    };
+    this.detach(conn.id);
+    this.managed.set(conn.id, conn);
+    this.runtime.set(conn.id, { printed: 0, rejected: 0, privateKey: priv });
+    this._start(conn);
+    return this.publicState().find((x) => x.id === conn.id);
+  }
+
+  /** Desliga uma conexão gerenciada (o aplicativo saiu da conta, por exemplo). */
+  detach(id) {
+    if (!this.managed.has(id)) return false;
+    this._stop(id);
+    this.runtime.delete(id);
+    this.managed.delete(id);
+    return true;
+  }
+
+  /** Reenvia agora a lista de impressoras de uma conexão (o padrão é a cada 5 min). */
+  async reportStatus(id) {
+    const conn = this.managed.get(id) || this.connections().find((c) => c.id === id);
+    if (!conn) throw new EPError('NOT_FOUND', 'Conexão não encontrada.');
+    return (await this._sendStatus(conn)).status;
+  }
+
   update(id, patch) {
     const list = this.connections();
     const c = list.find((x) => x.id === id);
@@ -219,6 +274,7 @@ class CloudRelay extends EventEmitter {
   }
 
   async _secret(c, name) {
+    if (name === 'token' && c.getToken) return c.getToken();
     if (c[`${name}Protected`]) return this.driver.unprotect(c[`${name}Protected`]);
     return c[`${name}Plain`];
   }
@@ -286,8 +342,8 @@ class CloudRelay extends EventEmitter {
         if (Date.now() - lastStatus > 5 * 60 * 1000) {
           const s = await this._sendStatus(conn, signal);
           if (s.status === 401 || s.status === 403) {
-            this._set(r, 'unauthorized', 'O sistema recusou a conexão (dispositivo revogado). Gere um novo código de conexão.', conn);
-            await sleep(60000, signal); continue;
+            this._set(r, 'unauthorized', UNAUTHORIZED(conn), conn);
+            await sleep(conn.getToken ? 5000 : 60000, signal); continue;
           }
           if (s.status < 400) this._set(r, 'online', null, conn);
           lastStatus = Date.now();
@@ -296,9 +352,9 @@ class CloudRelay extends EventEmitter {
         const { status, data } = await this._request(conn, `/v1/agent/jobs?wait=${first ? 0 : 25}`, { signal });
         first = false;
         if (status === 401 || status === 403) {
-          this._set(r, 'unauthorized', 'O sistema recusou a conexão (dispositivo revogado). Gere um novo código de conexão.', conn);
+          this._set(r, 'unauthorized', UNAUTHORIZED(conn), conn);
           lastStatus = 0;
-          await sleep(60000, signal); continue;
+          await sleep(conn.getToken ? 5000 : 60000, signal); continue;
         }
         if (status >= 400) throw new Error(`O servidor respondeu ${status}.`);
         this._set(r, 'online', null, conn);
@@ -350,9 +406,19 @@ class CloudRelay extends EventEmitter {
     try { printers = (await this.printing.list()).map((p) => ({ name: p.name, kind: p.kind, online: p.online, isDefault: p.isDefault })); } catch { /* ignora */ }
     return this._request(conn, '/v1/agent/status', {
       method: 'POST', signal, timeout: 15000,
-      body: { agent: { name: 'EasyPrint', version: VERSION, platform: process.platform }, printers, routes: this.config.get('routes') || {} },
+      body: { agent: { name: 'EasyPrint', version: VERSION, ...(conn.agent || {}), platform: process.platform }, printers, routes: this.config.get('routes') || {} },
     });
   }
+}
+
+const UNAUTHORIZED = (conn) => (conn.getToken
+  ? 'O sistema recusou o acesso deste computador. Entre de novo no aplicativo.'
+  : 'O sistema recusou a conexão (dispositivo revogado). Gere um novo código de conexão.');
+
+/** Par de chaves de criptografia deste computador: registre `encryptionKey` no servidor e guarde `privateKey` em segredo. */
+function generateEncryptionKeys() {
+  const { publicKey, privateKey } = crypto.generateKeyPairSync('x25519');
+  return { encryptionKey: publicKey.export({ format: 'der', type: 'spki' }).toString('base64'), privateKey: privateKey.export({ format: 'der', type: 'pkcs8' }).toString('base64') };
 }
 
 function safeJson(t) { try { return JSON.parse(t); } catch { return null; } }
@@ -363,4 +429,4 @@ function sleep(ms, signal) {
   });
 }
 
-module.exports = { CloudRelay, parseConnectionCode, verifyJob, decryptJob, keyMac, fingerprint, CODE_PREFIX };
+module.exports = { CloudRelay, parseConnectionCode, verifyJob, decryptJob, keyMac, fingerprint, generateEncryptionKeys, CODE_PREFIX };
