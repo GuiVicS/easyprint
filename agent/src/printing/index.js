@@ -82,6 +82,19 @@ class PrintService {
   }
 
   onJob(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
+
+  /** Grava o perfil de uma impressora (tipo, largura do papel, colunas…). Perfil vazio volta para a detecção automática. */
+  setProfile(name, profile) {
+    const profiles = this.config.get('profiles');
+    const allowed = ['mode', 'paperWidth', 'codepage', 'autoCut', 'columns', 'fontSize', 'labelWidth', 'labelHeight', 'dpi', 'paperSize'];
+    const prof = {};
+    for (const k of allowed) if (profile && profile[k] !== undefined && profile[k] !== null && profile[k] !== '') prof[k] = profile[k];
+    if (prof.columns) prof.columns = Math.min(120, Math.max(16, Number(prof.columns)));
+    if (Object.keys(prof).length) profiles[String(name)] = prof;
+    else delete profiles[String(name)];
+    this.config.set('profiles', profiles);
+    this.cache.at = 0;
+  }
   _emit(job) { for (const fn of this.listeners) { try { fn(job); } catch { /* ignora */ } } }
 
   profileFor(p) {

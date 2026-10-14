@@ -35,6 +35,26 @@ export interface PrintCore {
   printers(): Promise<CorePrinter[]>;
   setRoutes(routes: Record<string, string>): void;
   setDefaultPrinter(name: string | null): void;
+  printerProfiles(): Promise<(CorePrinter & { profile: PrinterProfile })[]>;
+  setProfile(name: string, profile: Partial<PrinterProfile>): void;
+  testPrint(name?: string | null, document?: unknown): Promise<unknown>;
+}
+export interface PrinterProfile {
+  /** escpos = térmica de cupom; office = impressora comum (A4); zpl = etiqueta; virtual = simulador */
+  mode: 'escpos' | 'office' | 'zpl' | 'virtual';
+  /** largura do papel da térmica, em mm */
+  paperWidth?: 58 | 80;
+  columns?: number;
+  /** impressora comum: tamanho da folha */
+  paperSize?: 'auto' | 'A4' | 'Letter' | string;
+  autoCut?: boolean;
+  codepage?: string;
+  fontSize?: number;
+  labelWidth?: number;
+  labelHeight?: number | null;
+  dpi?: number;
+  /** true quando foi escolhido à mão (senão é a detecção automática) */
+  configured?: boolean;
 }
 export function createCore(o: { home: string; log?: (...a: unknown[]) => void }): PrintCore;
 export function generateEncryptionKeys(): { encryptionKey: string; privateKey: string };

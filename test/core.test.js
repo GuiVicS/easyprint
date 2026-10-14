@@ -92,3 +92,15 @@ test('detach encerra a conexão; chaves erradas não entram', async () => {
   assert.throws(() => core.cloud.attach({ id: 'x', url: relayUrl, deviceId: 'd', publicKey: k.encryptionKey, privateKey: k.privateKey, getToken: () => 't' }), (e) => e.code === 'INVALID_CONNECTION');
   assert.throws(() => core.cloud.attach({ id: 'x', url: relayUrl, deviceId: 'd', publicKey: keys.publicKey, privateKey: k.privateKey }), (e) => e.code === 'INVALID_CONNECTION');
 });
+
+test('perfil da impressora (tamanho do papel) e página de teste pelo núcleo', async () => {
+  const before = (await core.printerProfiles()).find((p) => p.name === 'EasyPrint Simulador');
+  assert.ok(before && before.profile && before.profile.mode);
+  core.setProfile('EasyPrint Simulador', { paperWidth: 58 });
+  const after = (await core.printerProfiles()).find((p) => p.name === 'EasyPrint Simulador');
+  assert.strictEqual(after.profile.paperWidth, 58); assert.strictEqual(after.profile.columns, 32); assert.strictEqual(after.profile.configured, true);
+  const r = await core.testPrint('EasyPrint Simulador', { blocks: [{ type: 'title', value: 'Teste Pediu' }] });
+  assert.strictEqual(r.printer, 'EasyPrint Simulador', JSON.stringify(r));
+  core.setProfile('EasyPrint Simulador', {});                                                             // volta para a detecção automática
+  assert.strictEqual((await core.printerProfiles()).find((p) => p.name === 'EasyPrint Simulador').profile.configured, false);
+});
